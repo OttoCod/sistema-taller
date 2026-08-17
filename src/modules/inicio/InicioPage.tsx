@@ -4,9 +4,9 @@ import { AppError } from "../../lib/api/client";
 
 function StatusRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-line py-2 text-sm last:border-b-0">
-      <span className="text-ink-muted">{label}</span>
-      <span className="font-mono text-ink">{value}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-line py-2 text-sm last:border-b-0">
+      <span className="shrink-0 text-ink-muted">{label}</span>
+      <span className="break-all text-right font-mono text-ink">{value}</span>
     </div>
   );
 }
@@ -40,6 +40,7 @@ export function InicioPage() {
         {data && (
           <div>
             <StatusRow label="Base de datos" value="Conectada" />
+            <StatusRow label="Archivo" value={data.dbPath} />
             <StatusRow label="Versión de esquema" value={String(data.schemaVersion)} />
             <StatusRow label="Motor" value={data.sqliteVersion} />
             <StatusRow label="Versión de la app" value={data.appVersion} />
