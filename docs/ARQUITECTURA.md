@@ -1,0 +1,228 @@
+# Arquitectura — Espínola Motorepuestos
+
+Este documento describe la arquitectura base construida en la **Fase 1**.
+El esquema de base de datos completo (incluyendo las tablas que se crean
+recién a partir de la Fase 2) está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+
+La Fase 1 **no** implementa productos, ventas, compras, clientes ni stock.
+Solo deja funcionando: el proyecto Tauri+React+TS, la conexión a SQLite con
+migraciones, el patrón de manejo de errores, logging a archivo, la
+navegación completa (con pantallas placeholder) y un comando de extremo a
+extremo (`system_health_check`) que prueba que toda la cadena funciona.
+
+## 1. Estructura del proyecto
+
+```
+sistema-taller/
+├── src/                              # React + TypeScript
+│   ├── modules/
+│   │   ├── inicio/
+│   │   │   └── InicioPage.tsx        # llama a system_health_check
+│   │   └── placeholder/
+│   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
+│   ├── components/layout/
+│   │   ├── AppShell.tsx              # sidebar + topbar + <Outlet/>
+│   │   ├── Sidebar.tsx               # navegación (sección 29), generada desde lib/nav.ts
+│   │   ├── Topbar.tsx                # buscador global (visual, se conecta en Fase 2)
+│   │   └── ErrorBoundary.tsx         # red de contención de errores de render
+│   ├── lib/
+│   │   ├── nav.ts                    # única fuente de verdad de la navegación
+│   │   └── api/
+│   │       ├── client.ts             # invoke() tipado + AppError
+│   │       └── system.ts             # wrapper de system_health_check
+│   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
+│   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
+│   └── main.tsx
+├── src-tauri/                        # Rust
+│   ├── src/
+│   │   ├── commands/system.rs        # #[tauri::command] system_health_check
+│   │   ├── services/system.rs        # lógica: consulta SQLite, arma la respuesta
+│   │   ├── db.rs                     # pool SQLite, migraciones, AppState
+│   │   ├── error.rs                  # AppError (thiserror + Serialize)
+│   │   ├── logging.rs                # tracing a archivo diario
+│   │   ├── lib.rs                    # arma el Builder de Tauri
+│   │   └── main.rs
+│   ├── migrations/0001_bootstrap.sql # usuarios, configuracion, auditoria
+│   └── Cargo.toml
+└── docs/
+    ├── ARQUITECTURA.md               # este archivo
+    └── ESQUEMA_BD.md
+```
+
+Cada fase futura agrega una carpeta de dominio (`modules/ventas/`,
+`services/venta.rs`, etc.) sin tocar las ya existentes. `commands/` y
+`services/` están separados a propósito: `commands/*.rs` es una capa
+delgada que solo traduce entre Tauri y el dominio (extrae el `State`,
+llama al servicio, devuelve el resultado); toda la regla de negocio real
+vive en `services/*.rs`, que no sabe nada de Tauri y por lo tanto es
+trivial de testear (como en `db.rs`, que testea `services::system` sin
+levantar ninguna ventana).
+
+## 2. Flujo de comunicación: React → Tauri/Rust → SQLite
+
+```
+InicioPage.tsx
+  useQuery(["system","health-check"], getHealthCheck)
+        │
+        ▼
+lib/api/system.ts → invoke("system_health_check")
+        │
+        ▼
+lib/api/client.ts   ← único punto de la app que llama a @tauri-apps/api
+  invoke(cmd, args)   normaliza cualquier rechazo en un AppError tipado
+        │  IPC de Tauri
+        ▼
+src-tauri/commands/system.rs
+  #[tauri::command] async fn system_health_check(state: State<AppState>)
+        │
+        ▼
+src-tauri/services/system.rs
+  health_check(pool, db_path) → arma dos SELECT y devuelve HealthCheck
+        │
+        ▼
+SQLite (sqlx::SqlitePool, WAL, foreign_keys=ON)
+```
+
+Regla fija para todas las fases siguientes: la interfaz **nunca** llama a
+`@tauri-apps/api` directamente fuera de `lib/api/client.ts`, y **nunca**
+hay una segunda vía de acceso a SQLite desde el frontend (se descartó el
+enfoque híbrido con `tauri-plugin-sql` que se había mencionado como
+posibilidad en la propuesta inicial: tener una sola vía de acceso a datos
+es más simple de mantener que tener dos). Toda lectura y escritura pasa por
+un comando Rust, y las escrituras que tocan más de una tabla (vender,
+recibir compra, pagar cuenta corriente, fusionar productos) corren dentro
+de una transacción SQL en el servicio correspondiente.
+
+## 3. Dependencias principales
+
+**Frontend** (`package.json`)
+
+| Paquete | Para qué |
+|---|---|
+| `react`, `react-dom` | UI |
+| `react-router-dom` (`HashRouter`) | Navegación — `HashRouter` porque la app se sirve desde el binario empaquetado, no desde un servidor con rutas propias |
+| `@tanstack/react-query` | Cache, estados de carga/error alrededor de cada `invoke()` |
+| `tailwindcss` v4 + `@tailwindcss/vite` | Estilos, vía tokens en `styles/globals.css` |
+| `clsx`, `tailwind-merge` | Combinar clases condicionalmente sin duplicar utilidades |
+| `@tauri-apps/api` | Puente IPC con Rust |
+| `@tauri-apps/plugin-opener` | Abrir el navegador del sistema (Fase 8, "Consultar proveedor") |
+
+Deliberadamente **no** instalados todavía: `zod` (llega con el primer
+formulario real, Fase 2), primitivas de `@radix-ui/*` (llegan con el
+primer modal/diálogo real), `zustand` (no hace falta estado global más
+allá del cache de React Query).
+
+**Backend** (`src-tauri/Cargo.toml`)
+
+| Crate | Para qué |
+|---|---|
+| `tauri` 2.x, `tauri-plugin-opener` | Runtime de la app y apertura de URLs |
+| `sqlx` (`sqlite`, `runtime-tokio`, `migrate`) | Acceso a SQLite y migraciones versionadas |
+| `tokio` | Runtime async que usan Tauri y sqlx |
+| `thiserror` | `AppError` (sección 5) |
+| `serde`, `serde_json` | (de)serialización IPC |
+| `chrono` | Fechas |
+| `tracing`, `tracing-subscriber`, `tracing-appender` | Logging a archivo (sección 6) |
+| `tempfile` (dev) | Test de `db.rs` sobre una base temporal |
+
+Deliberadamente no instalados todavía: `calamine`/`rust_xlsxwriter`
+(Fase 3, Excel), `printpdf` (solo si el enfoque de impresión vía WebView2
+de la Fase 10 no alcanza), `zip` (Fase 12, backups), `tauri-plugin-dialog`
+y `tauri-plugin-fs` (Fase 12, elegir carpeta de backup).
+
+## 4. Estrategia de migraciones
+
+- `sqlx::migrate!("./migrations")` embebe los `.sql` en el binario en
+  tiempo de compilación y los aplica automáticamente al arrancar la app,
+  antes de que cualquier comando pueda ejecutarse (`lib.rs`, dentro de
+  `setup`).
+- Convención de nombres: `NNNN_descripcion.sql`, secuencial y
+  autoincremental (`0001_bootstrap.sql`, `0002_...`). Cada archivo es
+  **solo hacia adelante** — no hay migraciones de "bajada". Sobre datos
+  reales del negocio, revertir un cambio de esquema se resuelve
+  restaurando el backup automático (ver sección 5), que es más seguro que
+  una migración de bajada mal probada.
+- `sqlx` registra lo aplicado en su propia tabla `_sqlx_migrations`; el
+  campo `schemaVersion` que muestra la pantalla de Inicio es
+  `COUNT(*)` sobre esa tabla, así que confirma en vivo que las migraciones
+  corrieron.
+- Convención de esquema: toda tabla nueva se crea con `STRICT` (ver
+  `ESQUEMA_BD.md`).
+- A partir de que exista el módulo de backups (Fase 12): antes de aplicar
+  una migración nueva sobre una base que ya tiene datos reales, la app
+  dispara un backup automático primero. En la Fase 1 no aplica todavía
+  porque no hay datos de negocio que proteger.
+
+## 5. Estrategia de backups (diseño — se implementa en la Fase 12)
+
+- **Snapshot atómico**: `VACUUM INTO 'archivo.db'` en vez de copiar el
+  archivo `.db` en caliente — evita capturar un estado a medio escribir,
+  incluso en modo WAL.
+- **Manifiesto**: cada backup se guarda junto a un `.json` con
+  `version_esquema`, fecha y versión de la app, y queda registrado en la
+  tabla `backups`.
+- **Ubicación**: carpeta elegida por el usuario (se recuerda en
+  `configuracion`), vía `tauri-plugin-dialog`.
+- **Retención**: se conservan las últimas *N* copias (configurable en
+  `configuracion`, default a definir), rotando las más viejas.
+- **Automático**: al abrir la app, si el último backup tiene más de 24 h,
+  se dispara uno nuevo en segundo plano.
+- **Restauración**: siempre en tres pasos — (1) backup de seguridad de la
+  base actual, (2) confirmación explícita del usuario, (3) reemplazo del
+  archivo `.db` y reinicio de la app.
+
+## 6. Estrategia de manejo de errores
+
+- **Un solo tipo de error para toda la app**: `AppError`
+  (`src-tauri/src/error.rs`), con variantes `Database`, `Validation`,
+  `NotFound`, `Conflict`, `Io`, `Unexpected`. Todo comando de Tauri
+  devuelve `Result<T, AppError>`.
+- **Serialización consistente**: `AppError` implementa `Serialize` a mano
+  para viajar al frontend siempre como `{ kind, message }` — nunca el
+  `Debug` crudo de Rust.
+- **Log automático de fallas del sistema**: al serializar, si el error
+  *no* es uno de negocio (`Validation`/`NotFound`/`Conflict` son
+  esperables y ya tienen mensaje pensado para el usuario), se registra con
+  `tracing::error!` antes de cruzar el IPC. Esto es clave porque la app no
+  corre desde una terminal: sin este log, un fallo de base de datos en la
+  PC del local sería indiagnosticable después del hecho.
+- **Logging a archivo diario** (`logging.rs`), en el directorio de datos
+  de la app (`.../logs/espinola.log.YYYY-MM-DD`), sin salida por consola.
+- **Un solo choke point en el frontend**: `lib/api/client.ts` es el único
+  lugar que llama a `@tauri-apps/api`. Normaliza cualquier rechazo a la
+  clase `AppError` (TS), que expone `userMessage` — el texto de negocio
+  tal cual si es un error esperable, o un mensaje genérico
+  ("quedó registrado en el log") si es un fallo de sistema. Los
+  componentes nunca manejan el error crudo de Tauri.
+- **Red de contención de UI**: `ErrorBoundary` alrededor de toda la app
+  evita una pantalla en blanco ante un error de render no controlado.
+
+## 7. Extensibilidad — por qué esto no se reescribe en fases futuras
+
+- **Módulos por dominio** en ambos lados (`src/modules/<dominio>`,
+  `src-tauri/src/{commands,services}/<dominio>.rs`): una fase nueva agrega
+  carpetas, no reestructura las existentes.
+- **`configuracion` clave-valor**: ajustes nuevos (formato de comprobante,
+  stock mínimo por defecto, decimales de moneda) nunca requieren una
+  migración de esquema.
+- **`usuarios` ya existe, con una sola fila** ("Usuario principal"): toda
+  tabla que necesite "quién hizo esto" (`auditoria.usuario_id`, y las que
+  se agreguen en fases futuras) ya referencia esta tabla desde el día uno.
+  Agregar login/roles más adelante (sección 32) es sumar filas y una
+  pantalla de autenticación — no una migración destructiva.
+- **`auditoria` genérica**: un evento nuevo es un `accion` de texto nuevo,
+  no una columna ni una tabla nueva.
+- **Dinero en centavos + formato en `configuracion`**: cambiar cómo se
+  *muestra* la moneda no toca cómo se *guarda*.
+- **`venta_pagos` como tabla 1 a N desde el día uno**: la pantalla de
+  venta puede lanzarse simple (un método) y habilitar el pago dividido más
+  adelante sin migrar datos existentes.
+- **Único choke point de acceso a datos** (comandos Rust) y **único choke
+  point de IPC en el frontend** (`lib/api/client.ts`): agregar, cambiar o
+  instrumentar (logging, métricas, reintentos) cómo se llama a Rust se
+  hace en un lugar, no en cada componente.
+- **Límite documentado, no escondido**: SQLite es de un solo escritor.
+  Mientras el negocio use una sola PC esto no es un problema; si en algún
+  momento hace falta una segunda PC o sincronización (sección 33), el
+  cambio queda contenido en `src-tauri/src/db.rs` y los `services/*`,
+  porque el frontend nunca habla con SQLite directamente.

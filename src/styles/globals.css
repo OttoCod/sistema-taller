@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/*
+ * Paleta provisoria. No hay logo ni colores de marca definidos todavia
+ * (ver seccion 37 del documento de arquitectura). Se reemplaza cuando
+ * el negocio provea la identidad real; todo el UI consume estos tokens,
+ * asi que el cambio queda centralizado aca.
+ */
+@theme {
+  --color-bg: #f4f4f1;
+  --color-surface: #ffffff;
+  --color-surface-2: #eceee8;
+  --color-ink: #1c1f1d;
+  --color-ink-muted: #5b615b;
+  --color-line: #d8dad2;
+  --color-accent: #b04f1c;
+  --color-accent-ink: #ffffff;
+  --color-danger: #a23a2c;
+  --color-warn: #8f6412;
+  --color-good: #2e6b4f;
+
+  --font-sans: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
