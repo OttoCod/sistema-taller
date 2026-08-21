@@ -35,7 +35,10 @@ function QuickAdd({
     <div className="mt-1 flex gap-1">
       <input
         value={valor}
-        onChange={(e) => setValor(e.currentTarget.value)}
+        onChange={(e) => {
+          const nuevoValor = e.currentTarget.value;
+          setValor(nuevoValor);
+        }}
         placeholder={placeholder}
         className="w-full rounded-md border border-line bg-surface px-2 py-1 text-xs"
       />
@@ -185,7 +188,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                 <input
                   className={inputClass}
                   value={valores.nombre}
-                  onChange={(e) => setValores((v) => ({ ...v, nombre: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const nombre = e.currentTarget.value;
+                    setValores((v) => ({ ...v, nombre }));
+                  }}
                   autoFocus
                 />
               </Campo>
@@ -195,12 +201,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                   <select
                     className={inputClass}
                     value={valores.marcaId ?? ""}
-                    onChange={(e) =>
-                      setValores((v) => ({
-                        ...v,
-                        marcaId: e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                      }))
-                    }
+                    onChange={(e) => {
+                      const marcaId = e.currentTarget.value ? Number(e.currentTarget.value) : null;
+                      setValores((v) => ({ ...v, marcaId }));
+                    }}
                   >
                     <option value="">Sin marca</option>
                     {marcasQuery.data?.map((m) => (
@@ -216,12 +220,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                   <select
                     className={inputClass}
                     value={valores.categoriaId ?? ""}
-                    onChange={(e) =>
-                      setValores((v) => ({
-                        ...v,
-                        categoriaId: e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                      }))
-                    }
+                    onChange={(e) => {
+                      const categoriaId = e.currentTarget.value ? Number(e.currentTarget.value) : null;
+                      setValores((v) => ({ ...v, categoriaId }));
+                    }}
                   >
                     <option value="">Sin categoría</option>
                     {categoriasQuery.data?.map((c) => (
@@ -243,7 +245,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                     className={inputClass}
                     inputMode="decimal"
                     value={valores.costo}
-                    onChange={(e) => setValores((v) => ({ ...v, costo: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const costo = e.currentTarget.value;
+                      setValores((v) => ({ ...v, costo }));
+                    }}
                   />
                 </Campo>
                 <Campo label="Precio de venta ($)" error={errores.precioVenta}>
@@ -251,7 +256,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                     className={inputClass}
                     inputMode="decimal"
                     value={valores.precioVenta}
-                    onChange={(e) => setValores((v) => ({ ...v, precioVenta: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const precioVenta = e.currentTarget.value;
+                      setValores((v) => ({ ...v, precioVenta }));
+                    }}
                   />
                 </Campo>
                 <Campo label="Precio público ref. ($)" error={errores.precioPublico}>
@@ -259,7 +267,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                     className={inputClass}
                     inputMode="decimal"
                     value={valores.precioPublico}
-                    onChange={(e) => setValores((v) => ({ ...v, precioPublico: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const precioPublico = e.currentTarget.value;
+                      setValores((v) => ({ ...v, precioPublico }));
+                    }}
                   />
                 </Campo>
               </div>
@@ -273,7 +284,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                     className={inputClass}
                     rows={2}
                     value={valores.descripcion}
-                    onChange={(e) => setValores((v) => ({ ...v, descripcion: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const descripcion = e.currentTarget.value;
+                      setValores((v) => ({ ...v, descripcion }));
+                    }}
                   />
                 </Campo>
                 <Campo label="Observaciones">
@@ -281,7 +295,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                     className={inputClass}
                     rows={2}
                     value={valores.observaciones}
-                    onChange={(e) => setValores((v) => ({ ...v, observaciones: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const observaciones = e.currentTarget.value;
+                      setValores((v) => ({ ...v, observaciones }));
+                    }}
                   />
                 </Campo>
               </div>
@@ -291,9 +308,10 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                   <select
                     className={inputClass}
                     value={valores.estado}
-                    onChange={(e) =>
-                      setValores((v) => ({ ...v, estado: e.currentTarget.value as "activo" | "inactivo" }))
-                    }
+                    onChange={(e) => {
+                      const estado = e.currentTarget.value as "activo" | "inactivo";
+                      setValores((v) => ({ ...v, estado }));
+                    }}
                   >
                     <option value="activo">Activo</option>
                     <option value="inactivo">Inactivo</option>
