@@ -316,4 +316,116 @@ mod tests {
         assert_eq!(pendientes[0].nombre, "Con deuda");
         assert!(pendientes[0].fecha_ultimo_movimiento.is_some());
     }
+
+    #[tokio::test]
+    async fn ajuste_con_monto_cero_falla() {
+        let pool = pool_de_prueba().await;
+        let id = crear_cliente(&pool, "Cliente").await;
+
+        let resultado = ajustar(
+            &pool,
+            id,
+            AjusteCuentaCorriente {
+                monto: 0,
+                motivo: "sin efecto".into(),
+            },
+        )
+        .await;
+        assert!(matches!(resultado, Err(AppError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn pago_puede_dejar_saldo_a_favor_del_cliente() {
+        let pool = pool_de_prueba().await;
+        let id = crear_cliente(&pool, "Paga de más").await;
+
+        ajustar(
+            &pool,
+            id,
+            AjusteCuentaCorriente {
+                monto: 1_000_000,
+                motivo: "deuda inicial".into(),
+            },
+        )
+        .await
+        .unwrap();
+
+        // Paga más de lo que debía.
+        registrar_pago(
+            &pool,
+            id,
+            RegistrarPago {
+                monto: 1_500_000,
+                metodo_pago_id: 1,
+                observacion: None,
+            },
+        )
+        .await
+        .expect("pago");
+
+        let cliente = clientes::obtener(&pool, id).await.unwrap();
+        assert_eq!(cliente.saldo_cuenta_corriente, -500_000); // a favor del cliente
+
+        // Y no cuenta como deuda pendiente.
+        let pendientes = clientes::listar_cuentas_pendientes(&pool).await.unwrap();
+        assert!(pendientes.iter().all(|c| c.id != id));
+    }
+
+    #[tokio::test]
+    async fn cliente_sin_movimientos_tiene_historial_vacio() {
+        let pool = pool_de_prueba().await;
+        let id = crear_cliente(&pool, "Cliente nuevo").await;
+
+        let movimientos = listar_movimientos(&pool, id).await.unwrap();
+        assert!(movimientos.is_empty());
+    }
+
+    #[tokio::test]
+    async fn ciclo_completo_aparece_y_desaparece_de_cuentas_pendientes() {
+        let pool = pool_de_prueba().await;
+        let id = crear_cliente(&pool, "Cliente ciclo completo").await;
+
+        // Sin deuda: no aparece.
+        let pendientes = clientes::listar_cuentas_pendientes(&pool).await.unwrap();
+        assert!(pendientes.iter().all(|c| c.id != id));
+
+        // Carga la deuda inicial (ejemplo de la sección 13): $35.000.
+        ajustar(
+            &pool,
+            id,
+            AjusteCuentaCorriente {
+                monto: 3_500_000,
+                motivo: "Saldo migrado desde libreta".into(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let pendientes = clientes::listar_cuentas_pendientes(&pool).await.unwrap();
+        assert!(pendientes.iter().any(|c| c.id == id));
+
+        // Paga todo de una.
+        registrar_pago(
+            &pool,
+            id,
+            RegistrarPago {
+                monto: 3_500_000,
+                metodo_pago_id: 1,
+                observacion: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let cliente = clientes::obtener(&pool, id).await.unwrap();
+        assert_eq!(cliente.saldo_cuenta_corriente, 0);
+
+        // Saldada: desaparece de cuentas pendientes.
+        let pendientes = clientes::listar_cuentas_pendientes(&pool).await.unwrap();
+        assert!(pendientes.iter().all(|c| c.id != id));
+
+        // El historial completo queda, nada se borra.
+        let movimientos = listar_movimientos(&pool, id).await.unwrap();
+        assert_eq!(movimientos.len(), 2);
+    }
 }

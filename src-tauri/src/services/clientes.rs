@@ -175,4 +175,90 @@ mod tests {
 
         assert_eq!(cliente.patente, None);
     }
+
+    #[tokio::test]
+    async fn actualizar_persiste_los_cambios() {
+        let pool = pool_de_prueba().await;
+        let creado = crear(
+            &pool,
+            GuardarCliente {
+                nombre: "Ana Díaz".into(),
+                telefono: Some("3794111111".into()),
+                patente: None,
+                direccion: None,
+                observaciones: None,
+            },
+        )
+        .await
+        .expect("crear");
+
+        let actualizado = actualizar(
+            &pool,
+            creado.id,
+            GuardarCliente {
+                nombre: "Ana Díaz".into(),
+                telefono: Some("3794222222".into()),
+                patente: Some("xyz789".into()),
+                direccion: Some("San Martín 123".into()),
+                observaciones: None,
+            },
+        )
+        .await
+        .expect("actualizar");
+
+        assert_eq!(actualizado.telefono.as_deref(), Some("3794222222"));
+        assert_eq!(actualizado.patente.as_deref(), Some("XYZ789"));
+        assert_eq!(actualizado.direccion.as_deref(), Some("San Martín 123"));
+
+        // Se releyó de la base, no es solo lo que se mandó -- confirma que
+        // el UPDATE realmente pegó.
+        let releido = obtener(&pool, creado.id).await.unwrap();
+        assert_eq!(releido.telefono.as_deref(), Some("3794222222"));
+    }
+
+    #[tokio::test]
+    async fn no_se_puede_editar_consumidor_final() {
+        let pool = pool_de_prueba().await;
+        let resultado = actualizar(
+            &pool,
+            ID_CONSUMIDOR_FINAL,
+            GuardarCliente {
+                nombre: "Otro nombre".into(),
+                telefono: None,
+                patente: None,
+                direccion: None,
+                observaciones: None,
+            },
+        )
+        .await;
+        assert!(matches!(resultado, Err(AppError::Validation(_))));
+
+        // Y la fila reservada sigue intacta.
+        let consumidor_final = obtener(&pool, ID_CONSUMIDOR_FINAL).await.unwrap();
+        assert_eq!(consumidor_final.nombre, "Consumidor final");
+    }
+
+    #[tokio::test]
+    async fn buscar_encuentra_por_telefono() {
+        let pool = pool_de_prueba().await;
+        crear(
+            &pool,
+            GuardarCliente {
+                nombre: "Roberto Silva".into(),
+                telefono: Some("3794555555".into()),
+                patente: None,
+                direccion: None,
+                observaciones: None,
+            },
+        )
+        .await
+        .expect("crear");
+
+        let resultado = buscar(&pool, "555555").await.expect("buscar");
+        assert_eq!(resultado.len(), 1);
+        assert_eq!(resultado[0].nombre, "Roberto Silva");
+
+        let sin_resultado = buscar(&pool, "999999").await.expect("buscar");
+        assert!(sin_resultado.is_empty());
+    }
 }
