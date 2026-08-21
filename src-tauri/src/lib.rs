@@ -41,6 +41,10 @@ pub fn run() {
             commands::productos::productos_crear,
             commands::productos::productos_actualizar,
             commands::productos::productos_buscar,
+            commands::stock::stock_listar,
+            commands::stock::stock_listar_reposicion,
+            commands::stock::stock_ajustar,
+            commands::stock::stock_actualizar_minimo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

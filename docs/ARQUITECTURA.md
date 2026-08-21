@@ -1,8 +1,9 @@
 # Arquitectura — Espínola Motorepuestos
 
 Este documento describe la arquitectura base construida en la **Fase 1** y
-extendida en la **Fase 2** (catálogo de productos). El esquema de base de
-datos completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+extendida en la **Fase 2** (catálogo de productos) y la **Fase 4** (stock).
+El esquema de base de datos completo está en
+[`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -12,9 +13,20 @@ a extremo (`system_health_check`) que probó que toda la cadena funciona.
 
 La Fase 2 agregó el primer módulo funcional real: catálogo de productos
 (marcas, categorías, productos, códigos de fabricante, historial de
-precios) con CRUD completo y buscador FTS5. Estructura y decisiones
-nuevas están marcadas como "(Fase 2)" abajo; el resto sigue siendo tal
-cual quedó en la Fase 1.
+precios) con CRUD completo y buscador FTS5.
+
+La Fase 3 (importación de Excel) está pendiente del archivo real del
+negocio (sección 37) y todavía no arrancó.
+
+La Fase 4 agregó el ledger de `stock_movimientos`, la pantalla de Stock
+(ver y ajustar cantidades, con motivo obligatorio) y la de Reposición
+(productos en o por debajo del mínimo). También es el primer módulo que
+escribe en la tabla `auditoria` que existía desde la Fase 1 sin uso.
+Ventas y Compras van a generar movimientos de stock automáticamente
+cuando lleguen esas fases; por ahora el único tipo posible es `ajuste`.
+
+Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 4)"
+abajo; el resto sigue siendo tal cual quedó en fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -27,7 +39,11 @@ sistema-taller/
 │   │   ├── productos/                # (Fase 2)
 │   │   │   ├── CatalogoPage.tsx      # listado + búsqueda (FTS5 + fuse.js)
 │   │   │   ├── ProductoFormDialog.tsx
-│   │   │   └── productoSchema.ts     # validación zod + mapeos pesos↔centavos
+│   │   │   ├── productoSchema.ts     # validación zod + mapeos pesos↔centavos
+│   │   │   ├── StockPage.tsx         # (Fase 4)
+│   │   │   ├── ReposicionPage.tsx    # (Fase 4) stock_actual <= stock_minimo
+│   │   │   ├── StockTable.tsx        # (Fase 4) tabla compartida por ambas
+│   │   │   └── AjusteStockDialog.tsx # (Fase 4) ajuste con motivo + stock mínimo
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
@@ -43,7 +59,8 @@ sistema-taller/
 │   │       ├── system.ts             # wrapper de system_health_check
 │   │       ├── marcas.ts             # (Fase 2)
 │   │       ├── categorias.ts         # (Fase 2)
-│   │       └── productos.ts          # (Fase 2)
+│   │       ├── productos.ts          # (Fase 2)
+│   │       └── stock.ts              # (Fase 4)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -53,16 +70,19 @@ sistema-taller/
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
 │   │   │   ├── categorias.rs         # (Fase 2)
-│   │   │   └── productos.rs          # (Fase 2)
+│   │   │   ├── productos.rs          # (Fase 2)
+│   │   │   └── stock.rs              # (Fase 4)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
 │   │   │   ├── categorias.rs         # (Fase 2)
-│   │   │   └── productos.rs          # (Fase 2) CRUD + historial de precios + FTS5
+│   │   │   ├── productos.rs          # (Fase 2) CRUD + historial de precios + FTS5
+│   │   │   └── stock.rs              # (Fase 4) ajuste con motivo + escribe en auditoria
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
-│   │   │   └── producto.rs
+│   │   │   ├── producto.rs
+│   │   │   └── stock.rs              # (Fase 4)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -70,7 +90,8 @@ sistema-taller/
 │   │   └── main.rs
 │   ├── migrations/
 │   │   ├── 0001_bootstrap.sql        # usuarios, configuracion, auditoria
-│   │   └── 0002_catalogo.sql         # (Fase 2) marcas, categorias, productos, productos_fts
+│   │   ├── 0002_catalogo.sql         # (Fase 2) marcas, categorias, productos, productos_fts
+│   │   └── 0003_stock.sql            # (Fase 4) stock_movimientos
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo

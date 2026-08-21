@@ -4,6 +4,8 @@ import { AppShell } from "./components/layout/AppShell";
 import { ErrorBoundary } from "./components/layout/ErrorBoundary";
 import { InicioPage } from "./modules/inicio/InicioPage";
 import { CatalogoPage } from "./modules/productos/CatalogoPage";
+import { StockPage } from "./modules/productos/StockPage";
+import { ReposicionPage } from "./modules/productos/ReposicionPage";
 import { PlaceholderPage } from "./modules/placeholder/PlaceholderPage";
 import { NAV_SECTIONS, flattenNav } from "./lib/nav";
 
@@ -14,8 +16,6 @@ const queryClient = new QueryClient();
 // placeholder; no afecta el ruteo.
 const FASE_POR_RUTA: Record<string, string> = {
   "/ventas/nueva": "Fase 5 — Ventas",
-  "/productos/stock": "Fase 4 — Stock",
-  "/productos/reposicion": "Fase 4 — Stock",
   "/compras/nueva": "Fase 7 — Compras y recepción",
   "/compras/historial": "Fase 7 — Compras y recepción",
   "/proveedores": "Fase 8 — Proveedores",
@@ -26,7 +26,12 @@ const FASE_POR_RUTA: Record<string, string> = {
   "/configuracion": "Fase 1+ — se completa a medida que cada módulo lo necesita",
 };
 
-const RUTAS_IMPLEMENTADAS = new Set(["/", "/productos/catalogo"]);
+const RUTAS_IMPLEMENTADAS = new Set([
+  "/",
+  "/productos/catalogo",
+  "/productos/stock",
+  "/productos/reposicion",
+]);
 const placeholderRoutes = flattenNav(NAV_SECTIONS).filter(
   (item) => !RUTAS_IMPLEMENTADAS.has(item.path),
 );
@@ -40,6 +45,8 @@ function App() {
             <Route element={<AppShell />}>
               <Route path="/" element={<InicioPage />} />
               <Route path="/productos/catalogo" element={<CatalogoPage />} />
+              <Route path="/productos/stock" element={<StockPage />} />
+              <Route path="/productos/reposicion" element={<ReposicionPage />} />
               {placeholderRoutes.map((item) => (
                 <Route
                   key={item.path}
