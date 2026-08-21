@@ -57,7 +57,7 @@ export function ClientesPage() {
         type="search"
         value={consulta}
         onChange={(e) => setConsulta(e.currentTarget.value)}
-        placeholder="Buscar por nombre, teléfono o DNI/CUIT..."
+        placeholder="Buscar por nombre, teléfono o patente..."
         className="rounded-md border border-line bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none"
       />
 
@@ -73,7 +73,7 @@ export function ClientesPage() {
             <tr className="border-b border-line bg-surface-2 text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-3 py-2">Nombre</th>
               <th className="px-3 py-2">Teléfono</th>
-              <th className="px-3 py-2">DNI / CUIT</th>
+              <th className="px-3 py-2">Patente</th>
               <th className="px-3 py-2 text-right">Saldo</th>
               <th className="px-3 py-2" />
             </tr>
@@ -101,7 +101,7 @@ export function ClientesPage() {
               >
                 <td className="px-3 py-2 font-medium text-ink">{cliente.nombre}</td>
                 <td className="px-3 py-2 text-ink-muted">{cliente.telefono ?? "—"}</td>
-                <td className="px-3 py-2 text-ink-muted">{cliente.dniCuit ?? "—"}</td>
+                <td className="px-3 py-2 font-mono text-ink-muted">{cliente.patente ?? "—"}</td>
                 <td className="px-3 py-2 text-right">
                   <SaldoTexto saldo={cliente.saldoCuentaCorriente} />
                 </td>

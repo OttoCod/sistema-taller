@@ -8,7 +8,7 @@ pub struct Cliente {
     pub id: i64,
     pub nombre: String,
     pub telefono: Option<String>,
-    pub dni_cuit: Option<String>,
+    pub patente: Option<String>,
     pub direccion: Option<String>,
     pub observaciones: Option<String>,
     /// Centavos. Positivo = el cliente debe; negativo = tiene a favor.
@@ -20,7 +20,7 @@ pub struct Cliente {
 pub struct GuardarCliente {
     pub nombre: String,
     pub telefono: Option<String>,
-    pub dni_cuit: Option<String>,
+    pub patente: Option<String>,
     pub direccion: Option<String>,
     pub observaciones: Option<String>,
 }

@@ -6,7 +6,7 @@ export type Cliente = {
   id: number;
   nombre: string;
   telefono: string | null;
-  dniCuit: string | null;
+  patente: string | null;
   direccion: string | null;
   observaciones: string | null;
   /** Centavos. Positivo = debe; negativo = tiene a favor. */
@@ -16,7 +16,7 @@ export type Cliente = {
 export type GuardarCliente = {
   nombre: string;
   telefono: string | null;
-  dniCuit: string | null;
+  patente: string | null;
   direccion: string | null;
   observaciones: string | null;
 };

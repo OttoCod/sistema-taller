@@ -191,7 +191,7 @@ mod tests {
             GuardarCliente {
                 nombre: nombre.to_string(),
                 telefono: None,
-                dni_cuit: None,
+                patente: None,
                 direccion: None,
                 observaciones: None,
             },

@@ -131,13 +131,13 @@ export function ClienteFormDialog({ open, onOpenChange, clienteId }: Props) {
                     }}
                   />
                 </Campo>
-                <Campo label="DNI / CUIT">
+                <Campo label="Patente de la moto">
                   <input
                     className={inputClass}
-                    value={valores.dniCuit}
+                    value={valores.patente}
                     onChange={(e) => {
-                      const dniCuit = e.currentTarget.value;
-                      setValores((v) => ({ ...v, dniCuit }));
+                      const patente = e.currentTarget.value;
+                      setValores((v) => ({ ...v, patente }));
                     }}
                   />
                 </Campo>

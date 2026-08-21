@@ -140,7 +140,7 @@ clientes
   id                          INTEGER PK
   nombre                      TEXT NOT NULL
   telefono                    TEXT
-  dni_cuit                    TEXT
+  patente                     TEXT   -- patente de la moto (Fase 6, migración 0005). Se guarda en mayúsculas.
   direccion                   TEXT
   observaciones               TEXT
   saldo_cuenta_corriente      INTEGER NOT NULL DEFAULT 0   -- centavos, cacheado

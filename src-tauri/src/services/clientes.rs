@@ -4,9 +4,19 @@ use crate::error::{AppError, AppResult};
 use crate::models::cliente::{Cliente, ClienteConDeuda, GuardarCliente, ID_CONSUMIDOR_FINAL};
 
 const SELECT_CLIENTE: &str = "
-    SELECT id, nombre, telefono, dni_cuit, direccion, observaciones, saldo_cuenta_corriente
+    SELECT id, nombre, telefono, patente, direccion, observaciones, saldo_cuenta_corriente
     FROM clientes
 ";
+
+/// Las patentes se guardan siempre en mayúsculas, sin importar cómo las
+/// haya tipeado el vendedor -- así "abc123" y "ABC123" son la misma
+/// búsqueda y no aparecen como dos formatos distintos en el listado.
+fn normalizar_patente(patente: &Option<String>) -> Option<String> {
+    patente
+        .as_deref()
+        .map(|p| p.trim().to_uppercase())
+        .filter(|p| !p.is_empty())
+}
 
 pub async fn listar(pool: &SqlitePool) -> AppResult<Vec<Cliente>> {
     let clientes =
@@ -22,7 +32,7 @@ pub async fn buscar(pool: &SqlitePool, consulta: &str) -> AppResult<Vec<Cliente>
     let patron = format!("%{}%", consulta.trim());
     let clientes = sqlx::query_as::<_, Cliente>(&format!(
         "{SELECT_CLIENTE}
-         WHERE nombre LIKE ? OR telefono LIKE ? OR dni_cuit LIKE ?
+         WHERE nombre LIKE ? OR telefono LIKE ? OR patente LIKE ?
          ORDER BY nombre LIMIT 100"
     ))
     .bind(&patron)
@@ -50,12 +60,12 @@ pub async fn crear(pool: &SqlitePool, datos: GuardarCliente) -> AppResult<Client
     }
 
     let id = sqlx::query(
-        "INSERT INTO clientes (nombre, telefono, dni_cuit, direccion, observaciones)
+        "INSERT INTO clientes (nombre, telefono, patente, direccion, observaciones)
          VALUES (?, ?, ?, ?, ?)",
     )
     .bind(nombre)
     .bind(&datos.telefono)
-    .bind(&datos.dni_cuit)
+    .bind(normalizar_patente(&datos.patente))
     .bind(&datos.direccion)
     .bind(&datos.observaciones)
     .execute(pool)
@@ -83,12 +93,12 @@ pub async fn actualizar(pool: &SqlitePool, id: i64, datos: GuardarCliente) -> Ap
     obtener(pool, id).await?;
 
     sqlx::query(
-        "UPDATE clientes SET nombre = ?, telefono = ?, dni_cuit = ?, direccion = ?, observaciones = ?
+        "UPDATE clientes SET nombre = ?, telefono = ?, patente = ?, direccion = ?, observaciones = ?
          WHERE id = ?",
     )
     .bind(nombre)
     .bind(&datos.telefono)
-    .bind(&datos.dni_cuit)
+    .bind(normalizar_patente(&datos.patente))
     .bind(&datos.direccion)
     .bind(&datos.observaciones)
     .bind(id)
@@ -111,4 +121,58 @@ pub async fn listar_cuentas_pendientes(pool: &SqlitePool) -> AppResult<Vec<Clien
     .fetch_all(pool)
     .await?;
     Ok(clientes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn pool_de_prueba() -> SqlitePool {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dir = Box::leak(Box::new(dir));
+        crate::db::init_pool(dir.path()).await.expect("init_pool")
+    }
+
+    #[tokio::test]
+    async fn la_patente_se_guarda_en_mayusculas_y_sin_espacios() {
+        let pool = pool_de_prueba().await;
+
+        let cliente = crear(
+            &pool,
+            GuardarCliente {
+                nombre: "Carlos Gómez".into(),
+                telefono: None,
+                patente: Some("  ab123cd  ".into()),
+                direccion: None,
+                observaciones: None,
+            },
+        )
+        .await
+        .expect("crear cliente");
+
+        assert_eq!(cliente.patente.as_deref(), Some("AB123CD"));
+
+        let encontrado = buscar(&pool, "ab123").await.expect("buscar");
+        assert_eq!(encontrado.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn patente_vacia_se_guarda_como_nulo() {
+        let pool = pool_de_prueba().await;
+
+        let cliente = crear(
+            &pool,
+            GuardarCliente {
+                nombre: "Sin patente".into(),
+                telefono: None,
+                patente: Some("   ".into()),
+                direccion: None,
+                observaciones: None,
+            },
+        )
+        .await
+        .expect("crear cliente");
+
+        assert_eq!(cliente.patente, None);
+    }
 }

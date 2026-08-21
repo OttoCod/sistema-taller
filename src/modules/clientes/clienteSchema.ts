@@ -4,7 +4,7 @@ import type { Cliente, GuardarCliente } from "../../lib/api/clientes";
 export const clienteFormSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio"),
   telefono: z.string(),
-  dniCuit: z.string(),
+  patente: z.string(),
   direccion: z.string(),
   observaciones: z.string(),
 });
@@ -14,7 +14,7 @@ export type ClienteFormValues = z.infer<typeof clienteFormSchema>;
 export const clienteFormVacio: ClienteFormValues = {
   nombre: "",
   telefono: "",
-  dniCuit: "",
+  patente: "",
   direccion: "",
   observaciones: "",
 };
@@ -28,7 +28,7 @@ export function formValuesAGuardarCliente(valores: ClienteFormValues): GuardarCl
   return {
     nombre: valores.nombre.trim(),
     telefono: opcional(valores.telefono),
-    dniCuit: opcional(valores.dniCuit),
+    patente: opcional(valores.patente),
     direccion: opcional(valores.direccion),
     observaciones: opcional(valores.observaciones),
   };
@@ -38,7 +38,7 @@ export function clienteAFormValues(cliente: Cliente): ClienteFormValues {
   return {
     nombre: cliente.nombre,
     telefono: cliente.telefono ?? "",
-    dniCuit: cliente.dniCuit ?? "",
+    patente: cliente.patente ?? "",
     direccion: cliente.direccion ?? "",
     observaciones: cliente.observaciones ?? "",
   };
