@@ -24,6 +24,8 @@ export type Producto = {
   precioPublicoReferencia: number | null;
   precioActualizadoEn: string | null;
   estado: EstadoProducto;
+  /** Agregado en la Fase 5: el carrito de venta necesita mostrar disponibilidad. */
+  stockActual: number;
   /** "1566, 00034420" -- resumen para el listado, ver ProductoDetalle.codigosFabricante para el detalle completo. */
   codigosFabricanteResumen: string | null;
 };

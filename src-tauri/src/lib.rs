@@ -55,6 +55,9 @@ pub fn run() {
             commands::cuenta_corriente::cuenta_corriente_registrar_pago,
             commands::cuenta_corriente::cuenta_corriente_ajustar,
             commands::metodos_pago::metodos_pago_listar,
+            commands::ventas::ventas_listar,
+            commands::ventas::ventas_obtener,
+            commands::ventas::ventas_crear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

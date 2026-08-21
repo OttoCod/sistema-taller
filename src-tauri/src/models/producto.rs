@@ -20,6 +20,10 @@ pub struct Producto {
     pub precio_publico_referencia: Option<i64>,
     pub precio_actualizado_en: Option<String>,
     pub estado: String,
+    /// Se agregó en la Fase 5: el carrito de venta necesita mostrar
+    /// disponibilidad. No se editaba desde el catálogo (eso sigue siendo
+    /// solo la pantalla de Stock, Fase 4).
+    pub stock_actual: i64,
     /// Resumen ("1566, 00034420") para el listado. Nombre distinto del
     /// codigos_fabricante de ProductoDetalle (ahí sí van completos, con
     /// fabricante y observación) para que el flatten no choque.

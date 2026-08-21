@@ -6,3 +6,4 @@ pub mod metodos_pago;
 pub mod productos;
 pub mod stock;
 pub mod system;
+pub mod ventas;

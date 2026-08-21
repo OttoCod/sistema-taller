@@ -1,9 +1,10 @@
 # Arquitectura — Espínola Motorepuestos
 
 Este documento describe la arquitectura base construida en la **Fase 1** y
-extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock) y
-la **Fase 6** (clientes y cuenta corriente). El esquema de base de datos
-completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock),
+la **Fase 6** (clientes y cuenta corriente) y la **Fase 5** (ventas — se
+implementó después de la 6, ver más abajo por qué). El esquema de base de
+datos completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -35,9 +36,31 @@ necesita saber el método, esta fase también creó la tabla `metodos_pago`
 (semilla: efectivo, transferencia, tarjeta, cuenta_corriente) que en el
 diseño original estaba pensada para Ventas/Caja.
 
+La Fase 5 (Ventas) agregó `ventas`, `venta_detalles` y `venta_pagos`. Se
+implementó después de clientes/cuenta corriente por decisión del negocio,
+no por dependencia técnica. Decisiones clave:
+
+- **Nada se recibe calculado del frontend**: `subtotal`/`descuento_total`/
+  `total` se recalculan siempre del lado del servidor a partir de los
+  items del carrito, para que no se pueda mandar un total manipulado.
+- **La suma de los pagos tiene que coincidir exactamente con el total**
+  (punto C) antes de poder confirmar — validado en la misma transacción.
+- **Venta fiada exige cliente real**: si algún pago usa el método
+  "cuenta_corriente", no se puede confirmar con "Consumidor final" (punto
+  D) — genera además un movimiento `venta_fiada` en la cuenta corriente
+  del cliente, con la misma mecánica de la Fase 6.
+- **Stock insuficiente avisa, no bloquea**: si el carrito pide más
+  cantidad de la que hay, la fila se marca en la interfaz pero la venta se
+  puede confirmar igual — decisión explícita del negocio, no un
+  descuido.
+- **Número de venta = mismo mecanismo que `codigo_interno` de producto**:
+  se deriva del `id` autoincremental, nunca se reutiliza.
+- Todavía no hay anulación (eso es la Fase 11) ni comprobante/impresión
+  (Fase 10) — la confirmación de venta es solo una pantalla en la app.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 4)"
-/ "(Fase 6)" abajo; el resto sigue siendo tal cual quedó en fases
-anteriores.
+/ "(Fase 5)" / "(Fase 6)" abajo; el resto sigue siendo tal cual quedó en
+fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -61,12 +84,17 @@ sistema-taller/
 │   │   │   ├── ClienteFormDialog.tsx
 │   │   │   ├── CuentaCorrienteDialog.tsx  # historial + registrar pago/ajuste
 │   │   │   └── clienteSchema.ts
+│   │   ├── ventas/                   # (Fase 5)
+│   │   │   ├── NuevaVentaPage.tsx    # buscar → carrito → cliente → pagos → confirmar
+│   │   │   ├── ClienteSelector.tsx   # combobox liviano, reutilizado acá
+│   │   │   ├── HistorialVentasPage.tsx
+│   │   │   └── VentaDetalleDialog.tsx
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
 │   │   ├── AppShell.tsx              # sidebar + topbar + <Outlet/>
 │   │   ├── Sidebar.tsx               # navegación (sección 29), generada desde lib/nav.ts
-│   │   ├── Topbar.tsx                # buscador global (visual, se conecta en Fase 5)
+│   │   ├── Topbar.tsx                # buscador global -- sigue solo visual; NuevaVentaPage tiene su propio buscador de productos, no comparte este
 │   │   └── ErrorBoundary.tsx         # red de contención de errores de render
 │   ├── lib/
 │   │   ├── nav.ts                    # única fuente de verdad de la navegación
@@ -80,7 +108,8 @@ sistema-taller/
 │   │       ├── stock.ts              # (Fase 4)
 │   │       ├── clientes.ts           # (Fase 6)
 │   │       ├── cuentaCorriente.ts    # (Fase 6)
-│   │       └── metodosPago.ts        # (Fase 6)
+│   │       ├── metodosPago.ts        # (Fase 6)
+│   │       └── ventas.ts             # (Fase 5)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -94,7 +123,8 @@ sistema-taller/
 │   │   │   ├── stock.rs              # (Fase 4)
 │   │   │   ├── clientes.rs           # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
-│   │   │   └── metodos_pago.rs       # (Fase 6)
+│   │   │   ├── metodos_pago.rs       # (Fase 6)
+│   │   │   └── ventas.rs             # (Fase 5)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -103,7 +133,8 @@ sistema-taller/
 │   │   │   ├── stock.rs              # (Fase 4) ajuste con motivo + escribe en auditoria
 │   │   │   ├── clientes.rs           # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6) pago/ajuste + escribe en auditoria
-│   │   │   └── metodos_pago.rs       # (Fase 6)
+│   │   │   ├── metodos_pago.rs       # (Fase 6)
+│   │   │   └── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
@@ -111,7 +142,8 @@ sistema-taller/
 │   │   │   ├── stock.rs              # (Fase 4)
 │   │   │   ├── cliente.rs            # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
-│   │   │   └── metodo_pago.rs        # (Fase 6)
+│   │   │   ├── metodo_pago.rs        # (Fase 6)
+│   │   │   └── venta.rs              # (Fase 5)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -121,7 +153,9 @@ sistema-taller/
 │   │   ├── 0001_bootstrap.sql        # usuarios, configuracion, auditoria
 │   │   ├── 0002_catalogo.sql         # (Fase 2) marcas, categorias, productos, productos_fts
 │   │   ├── 0003_stock.sql            # (Fase 4) stock_movimientos
-│   │   └── 0004_clientes.sql         # (Fase 6) metodos_pago, clientes, cuenta_corriente_movimientos
+│   │   ├── 0004_clientes.sql         # (Fase 6) metodos_pago, clientes, cuenta_corriente_movimientos
+│   │   ├── 0005_clientes_patente.sql # dni_cuit → patente (pedido tras probar la Fase 6)
+│   │   └── 0006_ventas.sql           # (Fase 5) ventas, venta_detalles, venta_pagos
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo

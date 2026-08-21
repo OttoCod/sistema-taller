@@ -5,3 +5,4 @@ pub mod marca;
 pub mod metodo_pago;
 pub mod producto;
 pub mod stock;
+pub mod venta;
