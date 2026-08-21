@@ -69,7 +69,9 @@ mod tests {
         let health = crate::services::system::health_check(&pool, "test.db")
             .await
             .expect("health_check");
-        assert_eq!(health.schema_version, 1);
+        // No se fija un número exacto: crece con cada migración nueva que
+        // agreguen las fases siguientes. Lo que importa es que corrieron.
+        assert!(health.schema_version >= 1);
         assert!(!health.sqlite_version.is_empty());
     }
 }

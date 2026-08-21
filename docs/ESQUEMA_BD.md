@@ -57,7 +57,21 @@ producto_codigos_fabricante        -- resuelve el punto A: equivalencias, no un 
   codigo              TEXT NOT NULL
   fabricante_nombre   TEXT
   observacion         TEXT
+
+productos_fts   -- tabla virtual FTS5 (Fase 2), no es una tabla relacional más
+  nombre, codigo_interno, marca, categoria, codigos_fabricante
+  tokenize = "unicode61 remove_diacritics 2"   -- mayúsculas/acentos gratis
 ```
+
+**Nota de implementación (Fase 2):** en la propuesta inicial se planteó
+sincronizar `productos_fts` con triggers de SQLite. Se cambió por una
+sincronización explícita desde `src-tauri/src/services/productos.rs`
+(dentro de la misma transacción que crea/edita un producto): es más fácil
+de leer, de testear y de depurar que lógica escondida en triggers. La
+tolerancia a errores de tipeo reales (más allá de mayúsculas/acentos/orden
+de palabras, que resuelve FTS5 solo) se agrega en el frontend con `fuse.js`,
+reordenando los candidatos que ya devolvió FTS5 — nunca escaneando toda la
+tabla en el cliente.
 
 ## Precios
 

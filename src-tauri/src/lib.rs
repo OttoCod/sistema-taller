@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod error;
 mod logging;
+mod models;
 mod services;
 
 use tauri::Manager;
@@ -30,7 +31,16 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::system::system_health_check
+            commands::system::system_health_check,
+            commands::marcas::marcas_listar,
+            commands::marcas::marcas_crear,
+            commands::categorias::categorias_listar,
+            commands::categorias::categorias_crear,
+            commands::productos::productos_listar,
+            commands::productos::productos_obtener,
+            commands::productos::productos_crear,
+            commands::productos::productos_actualizar,
+            commands::productos::productos_buscar,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

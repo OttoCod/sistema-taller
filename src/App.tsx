@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppShell } from "./components/layout/AppShell";
 import { ErrorBoundary } from "./components/layout/ErrorBoundary";
 import { InicioPage } from "./modules/inicio/InicioPage";
+import { CatalogoPage } from "./modules/productos/CatalogoPage";
 import { PlaceholderPage } from "./modules/placeholder/PlaceholderPage";
 import { NAV_SECTIONS, flattenNav } from "./lib/nav";
 
@@ -13,7 +14,6 @@ const queryClient = new QueryClient();
 // placeholder; no afecta el ruteo.
 const FASE_POR_RUTA: Record<string, string> = {
   "/ventas/nueva": "Fase 5 — Ventas",
-  "/productos/catalogo": "Fase 2 — Base de datos y productos",
   "/productos/stock": "Fase 4 — Stock",
   "/productos/reposicion": "Fase 4 — Stock",
   "/compras/nueva": "Fase 7 — Compras y recepción",
@@ -26,7 +26,10 @@ const FASE_POR_RUTA: Record<string, string> = {
   "/configuracion": "Fase 1+ — se completa a medida que cada módulo lo necesita",
 };
 
-const placeholderRoutes = flattenNav(NAV_SECTIONS).filter((item) => item.path !== "/");
+const RUTAS_IMPLEMENTADAS = new Set(["/", "/productos/catalogo"]);
+const placeholderRoutes = flattenNav(NAV_SECTIONS).filter(
+  (item) => !RUTAS_IMPLEMENTADAS.has(item.path),
+);
 
 function App() {
   return (
@@ -36,6 +39,7 @@ function App() {
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<InicioPage />} />
+              <Route path="/productos/catalogo" element={<CatalogoPage />} />
               {placeholderRoutes.map((item) => (
                 <Route
                   key={item.path}

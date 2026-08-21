@@ -1,14 +1,20 @@
 # Arquitectura — Espínola Motorepuestos
 
-Este documento describe la arquitectura base construida en la **Fase 1**.
-El esquema de base de datos completo (incluyendo las tablas que se crean
-recién a partir de la Fase 2) está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+Este documento describe la arquitectura base construida en la **Fase 1** y
+extendida en la **Fase 2** (catálogo de productos). El esquema de base de
+datos completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
-La Fase 1 **no** implementa productos, ventas, compras, clientes ni stock.
-Solo deja funcionando: el proyecto Tauri+React+TS, la conexión a SQLite con
-migraciones, el patrón de manejo de errores, logging a archivo, la
-navegación completa (con pantallas placeholder) y un comando de extremo a
-extremo (`system_health_check`) que prueba que toda la cadena funciona.
+La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
+stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
+SQLite con migraciones, el patrón de manejo de errores, logging a archivo,
+la navegación completa (con pantallas placeholder) y un comando de extremo
+a extremo (`system_health_check`) que probó que toda la cadena funciona.
+
+La Fase 2 agregó el primer módulo funcional real: catálogo de productos
+(marcas, categorías, productos, códigos de fabricante, historial de
+precios) con CRUD completo y buscador FTS5. Estructura y decisiones
+nuevas están marcadas como "(Fase 2)" abajo; el resto sigue siendo tal
+cual quedó en la Fase 1.
 
 ## 1. Estructura del proyecto
 
@@ -18,31 +24,53 @@ sistema-taller/
 │   ├── modules/
 │   │   ├── inicio/
 │   │   │   └── InicioPage.tsx        # llama a system_health_check
+│   │   ├── productos/                # (Fase 2)
+│   │   │   ├── CatalogoPage.tsx      # listado + búsqueda (FTS5 + fuse.js)
+│   │   │   ├── ProductoFormDialog.tsx
+│   │   │   └── productoSchema.ts     # validación zod + mapeos pesos↔centavos
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
 │   │   ├── AppShell.tsx              # sidebar + topbar + <Outlet/>
 │   │   ├── Sidebar.tsx               # navegación (sección 29), generada desde lib/nav.ts
-│   │   ├── Topbar.tsx                # buscador global (visual, se conecta en Fase 2)
+│   │   ├── Topbar.tsx                # buscador global (visual, se conecta en Fase 5)
 │   │   └── ErrorBoundary.tsx         # red de contención de errores de render
 │   ├── lib/
 │   │   ├── nav.ts                    # única fuente de verdad de la navegación
+│   │   ├── money.ts                  # (Fase 2) centavos↔pesos, formato ARS
 │   │   └── api/
 │   │       ├── client.ts             # invoke() tipado + AppError
-│   │       └── system.ts             # wrapper de system_health_check
+│   │       ├── system.ts             # wrapper de system_health_check
+│   │       ├── marcas.ts             # (Fase 2)
+│   │       ├── categorias.ts         # (Fase 2)
+│   │       └── productos.ts          # (Fase 2)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
 ├── src-tauri/                        # Rust
 │   ├── src/
-│   │   ├── commands/system.rs        # #[tauri::command] system_health_check
-│   │   ├── services/system.rs        # lógica: consulta SQLite, arma la respuesta
+│   │   ├── commands/                 # #[tauri::command], una capa delgada
+│   │   │   ├── system.rs
+│   │   │   ├── marcas.rs             # (Fase 2)
+│   │   │   ├── categorias.rs         # (Fase 2)
+│   │   │   └── productos.rs          # (Fase 2)
+│   │   ├── services/                 # reglas de negocio, sin nada de Tauri
+│   │   │   ├── system.rs
+│   │   │   ├── marcas.rs             # (Fase 2)
+│   │   │   ├── categorias.rs         # (Fase 2)
+│   │   │   └── productos.rs          # (Fase 2) CRUD + historial de precios + FTS5
+│   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
+│   │   │   ├── marca.rs
+│   │   │   ├── categoria.rs
+│   │   │   └── producto.rs
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
 │   │   ├── lib.rs                    # arma el Builder de Tauri
 │   │   └── main.rs
-│   ├── migrations/0001_bootstrap.sql # usuarios, configuracion, auditoria
+│   ├── migrations/
+│   │   ├── 0001_bootstrap.sql        # usuarios, configuracion, auditoria
+│   │   └── 0002_catalogo.sql         # (Fase 2) marcas, categorias, productos, productos_fts
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo
@@ -106,11 +134,14 @@ de una transacción SQL en el servicio correspondiente.
 | `clsx`, `tailwind-merge` | Combinar clases condicionalmente sin duplicar utilidades |
 | `@tauri-apps/api` | Puente IPC con Rust |
 | `@tauri-apps/plugin-opener` | Abrir el navegador del sistema (Fase 8, "Consultar proveedor") |
+| `zod` (Fase 2) | Validación del formulario de producto |
+| `@radix-ui/react-dialog` (Fase 2) | Modal accesible del formulario de producto |
+| `fuse.js` (Fase 2) | Reordenamiento difuso de los candidatos que devuelve FTS5 (punto H) |
 
-Deliberadamente **no** instalados todavía: `zod` (llega con el primer
-formulario real, Fase 2), primitivas de `@radix-ui/*` (llegan con el
-primer modal/diálogo real), `zustand` (no hace falta estado global más
-allá del cache de React Query).
+Deliberadamente **no** instalados todavía: `zustand` (no hace falta estado
+global más allá del cache de React Query), `react-hook-form` (el
+formulario de producto alcanza con estado de React simple; se reconsidera
+si Ventas/Compras lo necesitan).
 
 **Backend** (`src-tauri/Cargo.toml`)
 
