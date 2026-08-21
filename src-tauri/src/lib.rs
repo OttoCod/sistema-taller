@@ -45,6 +45,16 @@ pub fn run() {
             commands::stock::stock_listar_reposicion,
             commands::stock::stock_ajustar,
             commands::stock::stock_actualizar_minimo,
+            commands::clientes::clientes_listar,
+            commands::clientes::clientes_buscar,
+            commands::clientes::clientes_obtener,
+            commands::clientes::clientes_crear,
+            commands::clientes::clientes_actualizar,
+            commands::clientes::clientes_listar_cuentas_pendientes,
+            commands::cuenta_corriente::cuenta_corriente_listar_movimientos,
+            commands::cuenta_corriente::cuenta_corriente_registrar_pago,
+            commands::cuenta_corriente::cuenta_corriente_ajustar,
+            commands::metodos_pago::metodos_pago_listar,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

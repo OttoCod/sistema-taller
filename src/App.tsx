@@ -6,6 +6,8 @@ import { InicioPage } from "./modules/inicio/InicioPage";
 import { CatalogoPage } from "./modules/productos/CatalogoPage";
 import { StockPage } from "./modules/productos/StockPage";
 import { ReposicionPage } from "./modules/productos/ReposicionPage";
+import { ClientesPage } from "./modules/clientes/ClientesPage";
+import { CuentasPendientesPage } from "./modules/clientes/CuentasPendientesPage";
 import { PlaceholderPage } from "./modules/placeholder/PlaceholderPage";
 import { NAV_SECTIONS, flattenNav } from "./lib/nav";
 
@@ -19,8 +21,6 @@ const FASE_POR_RUTA: Record<string, string> = {
   "/compras/nueva": "Fase 7 — Compras y recepción",
   "/compras/historial": "Fase 7 — Compras y recepción",
   "/proveedores": "Fase 8 — Proveedores",
-  "/clientes": "Fase 6 — Clientes y cuentas corrientes",
-  "/clientes/cuentas-pendientes": "Fase 6 — Clientes y cuentas corrientes",
   "/caja": "Fase 9 — Caja",
   "/ventas/historial": "Fase 5 — Ventas",
   "/configuracion": "Fase 1+ — se completa a medida que cada módulo lo necesita",
@@ -31,6 +31,8 @@ const RUTAS_IMPLEMENTADAS = new Set([
   "/productos/catalogo",
   "/productos/stock",
   "/productos/reposicion",
+  "/clientes",
+  "/clientes/cuentas-pendientes",
 ]);
 const placeholderRoutes = flattenNav(NAV_SECTIONS).filter(
   (item) => !RUTAS_IMPLEMENTADAS.has(item.path),
@@ -47,6 +49,8 @@ function App() {
               <Route path="/productos/catalogo" element={<CatalogoPage />} />
               <Route path="/productos/stock" element={<StockPage />} />
               <Route path="/productos/reposicion" element={<ReposicionPage />} />
+              <Route path="/clientes" element={<ClientesPage />} />
+              <Route path="/clientes/cuentas-pendientes" element={<CuentasPendientesPage />} />
               {placeholderRoutes.map((item) => (
                 <Route
                   key={item.path}

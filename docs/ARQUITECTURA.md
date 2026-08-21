@@ -1,9 +1,9 @@
 # Arquitectura — Espínola Motorepuestos
 
 Este documento describe la arquitectura base construida en la **Fase 1** y
-extendida en la **Fase 2** (catálogo de productos) y la **Fase 4** (stock).
-El esquema de base de datos completo está en
-[`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock) y
+la **Fase 6** (clientes y cuenta corriente). El esquema de base de datos
+completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -25,8 +25,19 @@ escribe en la tabla `auditoria` que existía desde la Fase 1 sin uso.
 Ventas y Compras van a generar movimientos de stock automáticamente
 cuando lleguen esas fases; por ahora el único tipo posible es `ajuste`.
 
+La Fase 6 agregó clientes (con "Consumidor final" como fila reservada,
+`id = 1`, no editable) y cuenta corriente: mismo patrón de ledger que
+`stock_movimientos`, con **pago** (reduce la deuda, con método de pago) y
+**ajuste manual con motivo obligatorio** (para migrar deudas que ya
+existían en papel). `venta_fiada` y `devolucion` quedan en el esquema
+listos para cuando lleguen Ventas y Devoluciones. Como registrar un pago
+necesita saber el método, esta fase también creó la tabla `metodos_pago`
+(semilla: efectivo, transferencia, tarjeta, cuenta_corriente) que en el
+diseño original estaba pensada para Ventas/Caja.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 4)"
-abajo; el resto sigue siendo tal cual quedó en fases anteriores.
+/ "(Fase 6)" abajo; el resto sigue siendo tal cual quedó en fases
+anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -44,6 +55,12 @@ sistema-taller/
 │   │   │   ├── ReposicionPage.tsx    # (Fase 4) stock_actual <= stock_minimo
 │   │   │   ├── StockTable.tsx        # (Fase 4) tabla compartida por ambas
 │   │   │   └── AjusteStockDialog.tsx # (Fase 4) ajuste con motivo + stock mínimo
+│   │   ├── clientes/                 # (Fase 6)
+│   │   │   ├── ClientesPage.tsx
+│   │   │   ├── CuentasPendientesPage.tsx  # saldo > 0
+│   │   │   ├── ClienteFormDialog.tsx
+│   │   │   ├── CuentaCorrienteDialog.tsx  # historial + registrar pago/ajuste
+│   │   │   └── clienteSchema.ts
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
@@ -60,7 +77,10 @@ sistema-taller/
 │   │       ├── marcas.ts             # (Fase 2)
 │   │       ├── categorias.ts         # (Fase 2)
 │   │       ├── productos.ts          # (Fase 2)
-│   │       └── stock.ts              # (Fase 4)
+│   │       ├── stock.ts              # (Fase 4)
+│   │       ├── clientes.ts           # (Fase 6)
+│   │       ├── cuentaCorriente.ts    # (Fase 6)
+│   │       └── metodosPago.ts        # (Fase 6)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -71,18 +91,27 @@ sistema-taller/
 │   │   │   ├── marcas.rs             # (Fase 2)
 │   │   │   ├── categorias.rs         # (Fase 2)
 │   │   │   ├── productos.rs          # (Fase 2)
-│   │   │   └── stock.rs              # (Fase 4)
+│   │   │   ├── stock.rs              # (Fase 4)
+│   │   │   ├── clientes.rs           # (Fase 6)
+│   │   │   ├── cuenta_corriente.rs   # (Fase 6)
+│   │   │   └── metodos_pago.rs       # (Fase 6)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
 │   │   │   ├── categorias.rs         # (Fase 2)
 │   │   │   ├── productos.rs          # (Fase 2) CRUD + historial de precios + FTS5
-│   │   │   └── stock.rs              # (Fase 4) ajuste con motivo + escribe en auditoria
+│   │   │   ├── stock.rs              # (Fase 4) ajuste con motivo + escribe en auditoria
+│   │   │   ├── clientes.rs           # (Fase 6)
+│   │   │   ├── cuenta_corriente.rs   # (Fase 6) pago/ajuste + escribe en auditoria
+│   │   │   └── metodos_pago.rs       # (Fase 6)
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
 │   │   │   ├── producto.rs
-│   │   │   └── stock.rs              # (Fase 4)
+│   │   │   ├── stock.rs              # (Fase 4)
+│   │   │   ├── cliente.rs            # (Fase 6)
+│   │   │   ├── cuenta_corriente.rs   # (Fase 6)
+│   │   │   └── metodo_pago.rs        # (Fase 6)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -91,7 +120,8 @@ sistema-taller/
 │   ├── migrations/
 │   │   ├── 0001_bootstrap.sql        # usuarios, configuracion, auditoria
 │   │   ├── 0002_catalogo.sql         # (Fase 2) marcas, categorias, productos, productos_fts
-│   │   └── 0003_stock.sql            # (Fase 4) stock_movimientos
+│   │   ├── 0003_stock.sql            # (Fase 4) stock_movimientos
+│   │   └── 0004_clientes.sql         # (Fase 6) metodos_pago, clientes, cuenta_corriente_movimientos
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo
