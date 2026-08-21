@@ -82,11 +82,12 @@ export function CatalogoPage() {
       )}
 
       <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[820px] text-sm">
           <thead>
             <tr className="border-b border-line bg-surface-2 text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-3 py-2">Nombre</th>
               <th className="px-3 py-2">Código</th>
+              <th className="px-3 py-2">Cód. fabricante</th>
               <th className="px-3 py-2">Marca</th>
               <th className="px-3 py-2">Categoría</th>
               <th className="px-3 py-2 text-right">Costo</th>
@@ -97,14 +98,14 @@ export function CatalogoPage() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-center text-ink-muted">
+                <td colSpan={8} className="px-3 py-4 text-center text-ink-muted">
                   Buscando...
                 </td>
               </tr>
             )}
             {!isLoading && resultados.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-center text-ink-muted">
+                <td colSpan={8} className="px-3 py-4 text-center text-ink-muted">
                   {consultaLimpia
                     ? "Sin resultados para esa búsqueda."
                     : "Todavía no hay productos cargados."}
@@ -119,6 +120,9 @@ export function CatalogoPage() {
               >
                 <td className="px-3 py-2 font-medium text-ink">{producto.nombre}</td>
                 <td className="px-3 py-2 font-mono text-xs text-ink-muted">{producto.codigoInterno}</td>
+                <td className="px-3 py-2 font-mono text-xs text-ink-muted">
+                  {producto.codigosFabricanteResumen ?? "—"}
+                </td>
                 <td className="px-3 py-2 text-ink-muted">{producto.marcaNombre ?? "—"}</td>
                 <td className="px-3 py-2 text-ink-muted">{producto.categoriaNombre ?? "—"}</td>
                 <td className="px-3 py-2 text-right font-mono">{formatearCentavos(producto.costoActual)}</td>

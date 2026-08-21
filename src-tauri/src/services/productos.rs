@@ -10,10 +10,16 @@ const SELECT_PRODUCTO: &str = "
         p.categoria_id, c.nombre AS categoria_nombre,
         p.descripcion, p.observaciones,
         p.costo_actual, p.precio_venta_actual, p.precio_publico_referencia,
-        p.precio_actualizado_en, p.estado
+        p.precio_actualizado_en, p.estado,
+        cf.codigos AS codigos_fabricante_resumen
     FROM productos p
     LEFT JOIN marcas m ON m.id = p.marca_id
     LEFT JOIN categorias c ON c.id = p.categoria_id
+    LEFT JOIN (
+        SELECT producto_id, GROUP_CONCAT(codigo, ', ') AS codigos
+        FROM producto_codigos_fabricante
+        GROUP BY producto_id
+    ) cf ON cf.producto_id = p.id
 ";
 
 pub async fn listar(pool: &SqlitePool) -> AppResult<Vec<Producto>> {
@@ -449,6 +455,12 @@ mod tests {
         let resultados = buscar(&pool, "c7hsa bujia").await.expect("buscar");
         assert_eq!(resultados.len(), 1);
         assert_eq!(resultados[0].nombre, "Bujía NGK C7HSA");
+        // El listado tiene que mostrar el código de fabricante, no solo el
+        // código interno autogenerado (bug reportado tras probar en Windows).
+        assert_eq!(
+            resultados[0].codigos_fabricante_resumen.as_deref(),
+            Some("C7HSA")
+        );
 
         // Por marca.
         let por_marca = buscar(&pool, "ngk").await.expect("buscar por marca");

@@ -20,6 +20,10 @@ pub struct Producto {
     pub precio_publico_referencia: Option<i64>,
     pub precio_actualizado_en: Option<String>,
     pub estado: String,
+    /// Resumen ("1566, 00034420") para el listado. Nombre distinto del
+    /// codigos_fabricante de ProductoDetalle (ahí sí van completos, con
+    /// fabricante y observación) para que el flatten no choque.
+    pub codigos_fabricante_resumen: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

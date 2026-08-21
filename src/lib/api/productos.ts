@@ -24,6 +24,8 @@ export type Producto = {
   precioPublicoReferencia: number | null;
   precioActualizadoEn: string | null;
   estado: EstadoProducto;
+  /** "1566, 00034420" -- resumen para el listado, ver ProductoDetalle.codigosFabricante para el detalle completo. */
+  codigosFabricanteResumen: string | null;
 };
 
 export type ProductoDetalle = Producto & {
