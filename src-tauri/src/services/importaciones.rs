@@ -367,49 +367,32 @@ async fn obtener_fila(pool: &SqlitePool, id: i64) -> AppResult<ImportacionFila> 
         .ok_or_else(|| AppError::NotFound(format!("No existe la fila de importación {id}.")))
 }
 
-async fn resolver_categoria(pool: &SqlitePool, texto: Option<&str>) -> AppResult<Option<i64>> {
-    let Some(nombre) = texto else {
-        return Ok(None);
-    };
-    let nombre = nombre.trim();
-    if nombre.is_empty() {
-        return Ok(None);
-    }
-    let existente: Option<(i64,)> =
-        sqlx::query_as("SELECT id FROM categorias WHERE nombre = ? COLLATE NOCASE")
-            .bind(nombre)
-            .fetch_optional(pool)
-            .await?;
-    if let Some((id,)) = existente {
-        return Ok(Some(id));
-    }
-    let id = sqlx::query("INSERT INTO categorias (nombre) VALUES (?)")
-        .bind(nombre)
-        .execute(pool)
-        .await?
-        .last_insert_rowid();
-    Ok(Some(id))
-}
-
 /// Crea el producto para una fila `crear_nuevo`: reutiliza
 /// `productos::crear` (así el código interno, precios_historial y FTS5
 /// quedan exactamente igual que si se hubiera cargado a mano desde el
 /// Catálogo). `codigo_legado` se completa aparte porque `GuardarProducto`
 /// todavía no lo conoce -- es un campo propio de esta fase.
+///
+/// Nunca asigna categoría sola: el título de sección del Excel
+/// (`categoria_excel_texto`) queda como dato histórico en la fila, pero
+/// crear categorías o asociarlas automáticamente quedó descartado --
+/// varios títulos "cierran" recién en la última fila del archivo, así
+/// que "hasta el próximo título" terminaba categorizando miles de
+/// productos que no tenían nada que ver. Eso se resuelve más adelante con
+/// una herramienta de categorización aparte, con confirmación humana.
 async fn crear_producto_desde_fila(pool: &SqlitePool, fila: &ImportacionFila) -> AppResult<i64> {
     let nombre = fila.nombre_excel.clone().ok_or_else(|| {
         AppError::Validation(
             "No se puede crear el producto sin nombre. Corregí el nombre antes de aplicar.".into(),
         )
     })?;
-    let categoria_id = resolver_categoria(pool, fila.categoria_excel_texto.as_deref()).await?;
 
     let detalle = productos::crear(
         pool,
         GuardarProducto {
             nombre,
             marca_id: None,
-            categoria_id,
+            categoria_id: None,
             descripcion: None,
             observaciones: None,
             costo_actual: fila.precio_lista_centavos,
@@ -880,7 +863,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn aplicar_pendientes_crea_productos_para_las_filas_limpias_y_les_asigna_categoria() {
+    async fn aplicar_pendientes_crea_productos_para_las_filas_limpias_sin_asignar_categoria() {
         let pool = pool_de_prueba().await;
         let importacion = procesar_archivo(
             &pool,
@@ -903,23 +886,26 @@ mod tests {
             .find(|f| f.nombre_excel.as_deref() == Some("aceite 20w50"))
             .unwrap();
         assert!(aceite.producto_id.is_some());
+        // El título de sección se conserva en la fila como dato histórico...
+        assert_eq!(
+            aceite.categoria_excel_texto.as_deref(),
+            Some("SECCION ACEITES")
+        );
 
         let producto = productos::obtener(&pool, aceite.producto_id.unwrap())
             .await
             .unwrap();
         assert_eq!(producto.producto.costo_actual, Some(50_000));
         assert_eq!(producto.producto.codigo_legado.as_deref(), Some("E1000"));
-        let categoria_id = producto
-            .producto
-            .categoria_id
-            .expect("debería tener categoría");
-        let (nombre_categoria,): (String,) =
-            sqlx::query_as("SELECT nombre FROM categorias WHERE id = ?")
-                .bind(categoria_id)
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        assert_eq!(nombre_categoria, "SECCION ACEITES");
+        // ...pero nunca se crea ni asigna una categoría sola (ver diseño: un
+        // título sin otro que lo cierre puede terminar categorizando miles
+        // de productos que no corresponden).
+        assert_eq!(producto.producto.categoria_id, None);
+        let (cantidad_categorias,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM categorias")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(cantidad_categorias, 0);
 
         // Las filas problemáticas (duplicados, sin nombre) siguen pendientes.
         let resumen_tras_bulk = resumen(&pool, importacion.id).await.unwrap();
