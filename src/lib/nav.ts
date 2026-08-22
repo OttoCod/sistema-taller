@@ -22,6 +22,7 @@ export const NAV_SECTIONS: NavItem[] = [
       { label: "Catálogo", path: "/productos/catalogo" },
       { label: "Stock", path: "/productos/stock" },
       { label: "Reposición", path: "/productos/reposicion" },
+      { label: "Importar Excel", path: "/productos/importar" },
     ],
   },
   {

@@ -13,6 +13,8 @@ import { HistorialVentasPage } from "./modules/ventas/HistorialVentasPage";
 import { NuevaCompraPage } from "./modules/compras/NuevaCompraPage";
 import { HistorialComprasPage } from "./modules/compras/HistorialComprasPage";
 import { ProveedoresPage } from "./modules/proveedores/ProveedoresPage";
+import { ImportarExcelPage } from "./modules/importaciones/ImportarExcelPage";
+import { RevisionImportacionPage } from "./modules/importaciones/RevisionImportacionPage";
 import { PlaceholderPage } from "./modules/placeholder/PlaceholderPage";
 import { NAV_SECTIONS, flattenNav } from "./lib/nav";
 
@@ -38,6 +40,7 @@ const RUTAS_IMPLEMENTADAS = new Set([
   "/compras/nueva",
   "/compras/historial",
   "/proveedores",
+  "/productos/importar",
 ]);
 const placeholderRoutes = flattenNav(NAV_SECTIONS).filter(
   (item) => !RUTAS_IMPLEMENTADAS.has(item.path),
@@ -61,6 +64,8 @@ function App() {
               <Route path="/compras/nueva" element={<NuevaCompraPage />} />
               <Route path="/compras/historial" element={<HistorialComprasPage />} />
               <Route path="/proveedores" element={<ProveedoresPage />} />
+              <Route path="/productos/importar" element={<ImportarExcelPage />} />
+              <Route path="/productos/importar/:id" element={<RevisionImportacionPage />} />
               {placeholderRoutes.map((item) => (
                 <Route
                   key={item.path}
