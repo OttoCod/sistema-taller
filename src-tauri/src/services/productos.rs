@@ -11,7 +11,7 @@ const SELECT_PRODUCTO: &str = "
         p.descripcion, p.observaciones,
         p.costo_actual, p.precio_venta_actual, p.precio_publico_referencia,
         p.precio_actualizado_en, p.estado, p.stock_actual,
-        cf.codigos AS codigos_fabricante_resumen
+        cf.codigos AS codigos_fabricante_resumen, p.codigo_legado
     FROM productos p
     LEFT JOIN marcas m ON m.id = p.marca_id
     LEFT JOIN categorias c ON c.id = p.categoria_id

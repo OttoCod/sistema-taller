@@ -68,6 +68,15 @@ pub fn run() {
             commands::producto_proveedores::producto_proveedores_listar,
             commands::producto_proveedores::producto_proveedores_agregar,
             commands::producto_proveedores::producto_proveedores_quitar,
+            commands::importaciones::importaciones_procesar_archivo,
+            commands::importaciones::importaciones_listar,
+            commands::importaciones::importaciones_obtener,
+            commands::importaciones::importaciones_resumen,
+            commands::importaciones::importaciones_listar_filas,
+            commands::importaciones::importaciones_buscar_confirmada_con_mismo_hash,
+            commands::importaciones::importaciones_resolver_fila,
+            commands::importaciones::importaciones_aplicar_pendientes,
+            commands::importaciones::importaciones_descartar,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

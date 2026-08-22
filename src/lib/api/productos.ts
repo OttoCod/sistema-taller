@@ -28,6 +28,8 @@ export type Producto = {
   stockActual: number;
   /** "1566, 00034420" -- resumen para el listado, ver ProductoDetalle.codigosFabricante para el detalle completo. */
   codigosFabricanteResumen: string | null;
+  /** Agregado en la Fase 3: código traído por una importación de Excel, solo trazabilidad. */
+  codigoLegado: string | null;
 };
 
 export type ProductoDetalle = Producto & {

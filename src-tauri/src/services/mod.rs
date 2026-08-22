@@ -2,6 +2,8 @@ pub mod categorias;
 pub mod clientes;
 pub mod compras;
 pub mod cuenta_corriente;
+pub mod importaciones;
+pub mod lector_excel;
 pub mod marcas;
 pub mod metodos_pago;
 pub mod producto_proveedores;

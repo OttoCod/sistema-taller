@@ -28,6 +28,10 @@ pub struct Producto {
     /// codigos_fabricante de ProductoDetalle (ahí sí van completos, con
     /// fabricante y observación) para que el flatten no choque.
     pub codigos_fabricante_resumen: Option<String>,
+    /// Se agregó en la Fase 3 (importación de Excel): el código que traía
+    /// el archivo original, solo para trazabilidad -- nunca es el ID
+    /// interno ni es UNIQUE (ver migración 0009 y services::importaciones).
+    pub codigo_legado: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
