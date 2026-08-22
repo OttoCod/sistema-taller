@@ -8,6 +8,7 @@ export const proveedorFormSchema = z.object({
   email: z.string(),
   sitioWeb: z.string(),
   observaciones: z.string(),
+  activo: z.boolean(),
 });
 
 export type ProveedorFormValues = z.infer<typeof proveedorFormSchema>;
@@ -19,6 +20,7 @@ export const proveedorFormVacio: ProveedorFormValues = {
   email: "",
   sitioWeb: "",
   observaciones: "",
+  activo: true,
 };
 
 function opcional(valor: string): string | null {
@@ -34,6 +36,7 @@ export function formValuesAGuardarProveedor(valores: ProveedorFormValues): Guard
     email: opcional(valores.email),
     sitioWeb: opcional(valores.sitioWeb),
     observaciones: opcional(valores.observaciones),
+    activo: valores.activo,
   };
 }
 
@@ -45,5 +48,6 @@ export function proveedorAFormValues(proveedor: Proveedor): ProveedorFormValues 
     email: proveedor.email ?? "",
     sitioWeb: proveedor.sitioWeb ?? "",
     observaciones: proveedor.observaciones ?? "",
+    activo: proveedor.activo,
   };
 }

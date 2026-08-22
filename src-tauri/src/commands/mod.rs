@@ -4,6 +4,7 @@ pub mod compras;
 pub mod cuenta_corriente;
 pub mod marcas;
 pub mod metodos_pago;
+pub mod producto_proveedores;
 pub mod productos;
 pub mod proveedores;
 pub mod stock;

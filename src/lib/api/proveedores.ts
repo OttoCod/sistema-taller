@@ -18,6 +18,7 @@ export type GuardarProveedor = {
   email: string | null;
   sitioWeb: string | null;
   observaciones: string | null;
+  activo: boolean;
 };
 
 export function listarProveedores() {

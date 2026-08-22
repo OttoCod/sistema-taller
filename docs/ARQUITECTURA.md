@@ -3,8 +3,9 @@
 Este documento describe la arquitectura base construida en la **Fase 1** y
 extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock),
 la **Fase 6** (clientes y cuenta corriente), la **Fase 5** (ventas — se
-implementó después de la 6, ver más abajo por qué) y la **Fase 7** (compras
-y recepción). El esquema de base de datos completo está en
+implementó después de la 6, ver más abajo por qué), la **Fase 7** (compras
+y recepción) y la **Fase 8** (gestión completa de proveedores y vínculo
+producto-proveedor). El esquema de base de datos completo está en
 [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
@@ -87,9 +88,40 @@ La Fase 7 (Compras y recepción) agregó `proveedores`, `compras` y
 - Todavía no hay anulación (Fase 11) ni el vínculo `producto_proveedores`
   (Fase 8).
 
+La Fase 8 (Proveedores) completó lo que la Fase 7 había dejado mínimo.
+Decisiones clave:
+
+- **`proveedores::listar`/`buscar` dejaron de filtrar solo activos**:
+  ahora devuelven todos, activos e inactivos, mismo criterio que
+  `productos::listar` (que solo excluye `fusionado`). El selector de
+  proveedor de la pantalla de compra (Fase 7) sigue mostrando solo
+  activos, pero ahora filtrando del lado del frontend -- igual que el
+  carrito de venta filtra productos `estado == 'activo'` sobre un
+  `buscarProductos` que también devuelve todos.
+- **Baja de proveedor = desactivar, nunca borrar**: se agregó un campo
+  `activo` editable en el mismo `ProveedorFormDialog` que ya existía
+  desde la Fase 7 (visible solo al editar, no al crear un proveedor
+  nuevo).
+- **Vínculo producto-proveedor (`producto_proveedores`)**: se administra
+  desde un diálogo por proveedor ("Productos"), no desde el formulario
+  de producto. `agregar` hace upsert por `(producto_id, proveedor_id)` --
+  como esa combinación es UNIQUE en el esquema, volver a vincular un
+  producto que ya se había "quitado" (soft-delete, `activo = 0`)
+  reactiva la misma fila en vez de chocar contra la restricción o crear
+  un duplicado.
+- **`es_principal` es un flag informativo, sin exclusividad automática**:
+  marcar un vínculo como principal no desmarca otros del mismo producto
+  con otros proveedores. No hay ninguna regla de negocio especificada
+  para eso en el documento original, así que se evitó inventarla.
+- **"Consultar proveedor"** abre `sitio_web` en el navegador del sistema
+  con `@tauri-apps/plugin-opener` (`openUrl`, comando
+  `plugin:opener|open_url`), agregando `https://` si el valor cargado no
+  tiene esquema. Ya estaba instalado y con permiso `opener:default`
+  desde la Fase 1, sin cambios de capabilities necesarios.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 4)"
-/ "(Fase 5)" / "(Fase 6)" / "(Fase 7)" abajo; el resto sigue siendo tal
-cual quedó en fases anteriores.
+/ "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" abajo; el resto sigue
+siendo tal cual quedó en fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -123,8 +155,10 @@ sistema-taller/
 │   │   │   ├── ProveedorSelector.tsx # combobox + "crear proveedor nuevo" inline
 │   │   │   ├── HistorialComprasPage.tsx
 │   │   │   └── CompraDetalleDialog.tsx
-│   │   ├── proveedores/              # (Fase 7, solo el formulario -- el listado es Fase 8)
-│   │   │   ├── ProveedorFormDialog.tsx  # reutilizado por ProveedorSelector y, en Fase 8, por el listado
+│   │   ├── proveedores/              # (Fase 7 el formulario, Fase 8 el resto)
+│   │   │   ├── ProveedoresPage.tsx      # (Fase 8) listado + búsqueda + Consultar proveedor
+│   │   │   ├── ProveedorFormDialog.tsx  # (Fase 7) reutilizado acá para alta/edición, con toggle Activo agregado en Fase 8
+│   │   │   ├── ProveedorProductosDialog.tsx  # (Fase 8) vínculo producto_proveedores por proveedor
 │   │   │   └── proveedorSchema.ts
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
@@ -148,7 +182,8 @@ sistema-taller/
 │   │       ├── metodosPago.ts        # (Fase 6)
 │   │       ├── ventas.ts             # (Fase 5)
 │   │       ├── proveedores.ts        # (Fase 7)
-│   │       └── compras.ts            # (Fase 7)
+│   │       ├── compras.ts            # (Fase 7)
+│   │       └── productoProveedores.ts  # (Fase 8)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -165,7 +200,8 @@ sistema-taller/
 │   │   │   ├── metodos_pago.rs       # (Fase 6)
 │   │   │   ├── ventas.rs             # (Fase 5)
 │   │   │   ├── proveedores.rs        # (Fase 7)
-│   │   │   └── compras.rs            # (Fase 7)
+│   │   │   ├── compras.rs            # (Fase 7)
+│   │   │   └── producto_proveedores.rs  # (Fase 8)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -176,8 +212,9 @@ sistema-taller/
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6) pago/ajuste + escribe en auditoria
 │   │   │   ├── metodos_pago.rs       # (Fase 6)
 │   │   │   ├── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción
-│   │   │   ├── proveedores.rs        # (Fase 7) CRUD, mismo patrón que clientes.rs
-│   │   │   └── compras.rs            # (Fase 7) suma stock + costo/precios_historial + auditoria en una sola transacción
+│   │   │   ├── proveedores.rs        # (Fase 7) CRUD, mismo patrón que clientes.rs; listar/buscar ampliado en Fase 8
+│   │   │   ├── compras.rs            # (Fase 7) suma stock + costo/precios_historial + auditoria en una sola transacción
+│   │   │   └── producto_proveedores.rs  # (Fase 8) upsert por (producto_id, proveedor_id), quitar = soft-delete
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
@@ -187,8 +224,9 @@ sistema-taller/
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
 │   │   │   ├── metodo_pago.rs        # (Fase 6)
 │   │   │   ├── venta.rs              # (Fase 5)
-│   │   │   ├── proveedor.rs          # (Fase 7)
-│   │   │   └── compra.rs             # (Fase 7)
+│   │   │   ├── proveedor.rs          # (Fase 7, activo en GuardarProveedor desde Fase 8)
+│   │   │   ├── compra.rs             # (Fase 7)
+│   │   │   └── producto_proveedor.rs # (Fase 8)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -201,7 +239,8 @@ sistema-taller/
 │   │   ├── 0004_clientes.sql         # (Fase 6) metodos_pago, clientes, cuenta_corriente_movimientos
 │   │   ├── 0005_clientes_patente.sql # dni_cuit → patente (pedido tras probar la Fase 6)
 │   │   ├── 0006_ventas.sql           # (Fase 5) ventas, venta_detalles, venta_pagos
-│   │   └── 0007_compras.sql          # (Fase 7) proveedores, compras, compra_detalles
+│   │   ├── 0007_compras.sql          # (Fase 7) proveedores, compras, compra_detalles
+│   │   └── 0008_producto_proveedores.sql  # (Fase 8) vínculo N:N producto-proveedor
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo

@@ -22,4 +22,5 @@ pub struct GuardarProveedor {
     pub email: Option<String>,
     pub sitio_web: Option<String>,
     pub observaciones: Option<String>,
+    pub activo: bool,
 }

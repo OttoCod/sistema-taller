@@ -157,6 +157,20 @@ export function ProveedorFormDialog({ open, onOpenChange, proveedor, onGuardado 
               />
             </Campo>
 
+            {esEdicion && (
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={valores.activo}
+                  onChange={(e) => {
+                    const activo = e.currentTarget.checked;
+                    setValores((v) => ({ ...v, activo }));
+                  }}
+                />
+                Activo
+              </label>
+            )}
+
             {errorGeneral && <p className="text-sm text-danger">{errorGeneral}</p>}
 
             <div className="mt-2 flex justify-end gap-2">

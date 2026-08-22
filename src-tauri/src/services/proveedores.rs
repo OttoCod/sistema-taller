@@ -8,22 +8,27 @@ const SELECT_PROVEEDOR: &str = "
     FROM proveedores
 ";
 
+/// Lista todos, activos e inactivos -- mismo criterio que
+/// `productos::listar`. Quien necesite solo los activos (por ejemplo el
+/// selector de proveedor al cargar una compra) filtra del lado del
+/// llamador, igual que se hace con `estado` de producto en el carrito de
+/// venta.
 pub async fn listar(pool: &SqlitePool) -> AppResult<Vec<Proveedor>> {
-    let proveedores = sqlx::query_as::<_, Proveedor>(&format!(
-        "{SELECT_PROVEEDOR} WHERE activo = 1 ORDER BY nombre LIMIT 500"
-    ))
-    .fetch_all(pool)
-    .await?;
+    let proveedores =
+        sqlx::query_as::<_, Proveedor>(&format!("{SELECT_PROVEEDOR} ORDER BY nombre LIMIT 500"))
+            .fetch_all(pool)
+            .await?;
     Ok(proveedores)
 }
 
 /// Búsqueda simple por substring, igual criterio que clientes: no
-/// justifica FTS5 para una lista de este tamaño.
+/// justifica FTS5 para una lista de este tamaño. Tampoco filtra por
+/// activo -- ver comentario de `listar`.
 pub async fn buscar(pool: &SqlitePool, consulta: &str) -> AppResult<Vec<Proveedor>> {
     let patron = format!("%{}%", consulta.trim());
     let proveedores = sqlx::query_as::<_, Proveedor>(&format!(
         "{SELECT_PROVEEDOR}
-         WHERE activo = 1 AND nombre LIKE ?
+         WHERE nombre LIKE ?
          ORDER BY nombre LIMIT 100"
     ))
     .bind(&patron)
@@ -49,8 +54,8 @@ pub async fn crear(pool: &SqlitePool, datos: GuardarProveedor) -> AppResult<Prov
     }
 
     let id = sqlx::query(
-        "INSERT INTO proveedores (nombre, telefono, whatsapp, email, sitio_web, observaciones)
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO proveedores (nombre, telefono, whatsapp, email, sitio_web, observaciones, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(nombre)
     .bind(&datos.telefono)
@@ -58,6 +63,7 @@ pub async fn crear(pool: &SqlitePool, datos: GuardarProveedor) -> AppResult<Prov
     .bind(&datos.email)
     .bind(&datos.sitio_web)
     .bind(&datos.observaciones)
+    .bind(datos.activo)
     .execute(pool)
     .await?
     .last_insert_rowid();
@@ -82,7 +88,7 @@ pub async fn actualizar(
     obtener(pool, id).await?;
 
     sqlx::query(
-        "UPDATE proveedores SET nombre = ?, telefono = ?, whatsapp = ?, email = ?, sitio_web = ?, observaciones = ?
+        "UPDATE proveedores SET nombre = ?, telefono = ?, whatsapp = ?, email = ?, sitio_web = ?, observaciones = ?, activo = ?
          WHERE id = ?",
     )
     .bind(nombre)
@@ -91,6 +97,7 @@ pub async fn actualizar(
     .bind(&datos.email)
     .bind(&datos.sitio_web)
     .bind(&datos.observaciones)
+    .bind(datos.activo)
     .bind(id)
     .execute(pool)
     .await?;
@@ -116,6 +123,7 @@ mod tests {
             email: None,
             sitio_web: None,
             observaciones: None,
+            activo: true,
         }
     }
 
@@ -153,5 +161,26 @@ mod tests {
             .expect("actualizar");
 
         assert_eq!(actualizado.whatsapp.as_deref(), Some("3794123456"));
+    }
+
+    #[tokio::test]
+    async fn desactivar_no_lo_saca_de_listar_ni_buscar() {
+        let pool = pool_de_prueba().await;
+        let creado = crear(&pool, proveedor_minimo("Proveedor a dar de baja"))
+            .await
+            .expect("crear");
+
+        let mut datos = proveedor_minimo("Proveedor a dar de baja");
+        datos.activo = false;
+        let actualizado = actualizar(&pool, creado.id, datos)
+            .await
+            .expect("desactivar");
+        assert!(!actualizado.activo);
+
+        let listado = listar(&pool).await.unwrap();
+        assert!(listado.iter().any(|p| p.id == creado.id));
+
+        let encontrado = buscar(&pool, "dar de baja").await.unwrap();
+        assert!(encontrado.iter().any(|p| p.id == creado.id));
     }
 }

@@ -208,6 +208,7 @@ mod tests {
                 email: None,
                 sitio_web: None,
                 observaciones: None,
+                activo: true,
             },
         )
         .await
