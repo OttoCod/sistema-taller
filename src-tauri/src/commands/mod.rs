@@ -1,9 +1,11 @@
 pub mod categorias;
 pub mod clientes;
+pub mod compras;
 pub mod cuenta_corriente;
 pub mod marcas;
 pub mod metodos_pago;
 pub mod productos;
+pub mod proveedores;
 pub mod stock;
 pub mod system;
 pub mod ventas;

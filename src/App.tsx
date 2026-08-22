@@ -10,6 +10,8 @@ import { ClientesPage } from "./modules/clientes/ClientesPage";
 import { CuentasPendientesPage } from "./modules/clientes/CuentasPendientesPage";
 import { NuevaVentaPage } from "./modules/ventas/NuevaVentaPage";
 import { HistorialVentasPage } from "./modules/ventas/HistorialVentasPage";
+import { NuevaCompraPage } from "./modules/compras/NuevaCompraPage";
+import { HistorialComprasPage } from "./modules/compras/HistorialComprasPage";
 import { PlaceholderPage } from "./modules/placeholder/PlaceholderPage";
 import { NAV_SECTIONS, flattenNav } from "./lib/nav";
 
@@ -19,8 +21,6 @@ const queryClient = new QueryClient();
 // sección 35 del documento de arquitectura). Se usa solo para el texto del
 // placeholder; no afecta el ruteo.
 const FASE_POR_RUTA: Record<string, string> = {
-  "/compras/nueva": "Fase 7 — Compras y recepción",
-  "/compras/historial": "Fase 7 — Compras y recepción",
   "/proveedores": "Fase 8 — Proveedores",
   "/caja": "Fase 9 — Caja",
   "/configuracion": "Fase 1+ — se completa a medida que cada módulo lo necesita",
@@ -35,6 +35,8 @@ const RUTAS_IMPLEMENTADAS = new Set([
   "/clientes/cuentas-pendientes",
   "/ventas/nueva",
   "/ventas/historial",
+  "/compras/nueva",
+  "/compras/historial",
 ]);
 const placeholderRoutes = flattenNav(NAV_SECTIONS).filter(
   (item) => !RUTAS_IMPLEMENTADAS.has(item.path),
@@ -55,6 +57,8 @@ function App() {
               <Route path="/clientes/cuentas-pendientes" element={<CuentasPendientesPage />} />
               <Route path="/ventas/nueva" element={<NuevaVentaPage />} />
               <Route path="/ventas/historial" element={<HistorialVentasPage />} />
+              <Route path="/compras/nueva" element={<NuevaCompraPage />} />
+              <Route path="/compras/historial" element={<HistorialComprasPage />} />
               {placeholderRoutes.map((item) => (
                 <Route
                   key={item.path}

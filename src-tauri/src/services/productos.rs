@@ -245,7 +245,7 @@ fn precios_iniciales(datos: &GuardarProducto) -> Vec<(&'static str, i64)> {
     precios
 }
 
-async fn registrar_precio(
+pub(crate) async fn registrar_precio(
     tx: &mut Transaction<'_, Sqlite>,
     producto_id: i64,
     tipo: &str,

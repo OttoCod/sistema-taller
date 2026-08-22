@@ -58,6 +58,13 @@ pub fn run() {
             commands::ventas::ventas_listar,
             commands::ventas::ventas_obtener,
             commands::ventas::ventas_crear,
+            commands::proveedores::proveedores_listar,
+            commands::proveedores::proveedores_buscar,
+            commands::proveedores::proveedores_crear,
+            commands::proveedores::proveedores_actualizar,
+            commands::compras::compras_listar,
+            commands::compras::compras_obtener,
+            commands::compras::compras_crear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,9 +2,10 @@
 
 Este documento describe la arquitectura base construida en la **Fase 1** y
 extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock),
-la **Fase 6** (clientes y cuenta corriente) y la **Fase 5** (ventas — se
-implementó después de la 6, ver más abajo por qué). El esquema de base de
-datos completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+la **Fase 6** (clientes y cuenta corriente), la **Fase 5** (ventas — se
+implementó después de la 6, ver más abajo por qué) y la **Fase 7** (compras
+y recepción). El esquema de base de datos completo está en
+[`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -58,9 +59,37 @@ no por dependencia técnica. Decisiones clave:
 - Todavía no hay anulación (eso es la Fase 11) ni comprobante/impresión
   (Fase 10) — la confirmación de venta es solo una pantalla en la app.
 
+La Fase 7 (Compras y recepción) agregó `proveedores`, `compras` y
+`compra_detalles`. Decisiones clave:
+
+- **`proveedores` se creó completo en esta fase** (todos los campos de
+  contacto ya definidos en `ESQUEMA_BD.md`) porque una compra necesita
+  poder asignarle un proveedor desde el día uno — mismo criterio que
+  `metodos_pago` en la Fase 6. Pero la **pantalla de gestión completa**
+  (listado, edición, vínculo producto-proveedor, "Consultar proveedor"
+  abriendo el sitio web) sigue siendo la Fase 8: por ahora solo existe un
+  selector con búsqueda y un "crear proveedor nuevo" inline (mismo
+  `ProveedorFormDialog` que va a reutilizar la Fase 8 para editar) dentro
+  de la pantalla de recepción.
+- **Recibir stock nunca se bloquea por el estado del producto**: a
+  diferencia de Ventas, una compra puede cargar cantidad para un producto
+  inactivo (reponer inventario no debería depender de si está a la venta).
+- **El costo se actualiza igual que el precio en el formulario de
+  producto**: si el `costoUnitario` cargado difiere del `costo_actual`
+  del producto, se actualiza el cacheado y se agrega una fila en
+  `precios_historial` (tipo `costo`) — se reutiliza la misma función
+  `registrar_precio` de la Fase 2, ahora expuesta como `pub(crate)`.
+- **`subtotal`/`total` se recalculan siempre del lado del servidor**,
+  mismo criterio que Ventas: nunca se confían del frontend.
+- **No hay "numero" separado como en `ventas`**: `compras` se identifica
+  directamente por su `id` (mostrado como `C-000001`); a diferencia de
+  `ventas.numero`, este esquema no necesitaba esa columna extra.
+- Todavía no hay anulación (Fase 11) ni el vínculo `producto_proveedores`
+  (Fase 8).
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 4)"
-/ "(Fase 5)" / "(Fase 6)" abajo; el resto sigue siendo tal cual quedó en
-fases anteriores.
+/ "(Fase 5)" / "(Fase 6)" / "(Fase 7)" abajo; el resto sigue siendo tal
+cual quedó en fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -89,6 +118,14 @@ sistema-taller/
 │   │   │   ├── ClienteSelector.tsx   # combobox liviano, reutilizado acá
 │   │   │   ├── HistorialVentasPage.tsx
 │   │   │   └── VentaDetalleDialog.tsx
+│   │   ├── compras/                  # (Fase 7)
+│   │   │   ├── NuevaCompraPage.tsx   # buscar → items → proveedor → confirmar
+│   │   │   ├── ProveedorSelector.tsx # combobox + "crear proveedor nuevo" inline
+│   │   │   ├── HistorialComprasPage.tsx
+│   │   │   └── CompraDetalleDialog.tsx
+│   │   ├── proveedores/              # (Fase 7, solo el formulario -- el listado es Fase 8)
+│   │   │   ├── ProveedorFormDialog.tsx  # reutilizado por ProveedorSelector y, en Fase 8, por el listado
+│   │   │   └── proveedorSchema.ts
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
@@ -109,7 +146,9 @@ sistema-taller/
 │   │       ├── clientes.ts           # (Fase 6)
 │   │       ├── cuentaCorriente.ts    # (Fase 6)
 │   │       ├── metodosPago.ts        # (Fase 6)
-│   │       └── ventas.ts             # (Fase 5)
+│   │       ├── ventas.ts             # (Fase 5)
+│   │       ├── proveedores.ts        # (Fase 7)
+│   │       └── compras.ts            # (Fase 7)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -124,7 +163,9 @@ sistema-taller/
 │   │   │   ├── clientes.rs           # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
 │   │   │   ├── metodos_pago.rs       # (Fase 6)
-│   │   │   └── ventas.rs             # (Fase 5)
+│   │   │   ├── ventas.rs             # (Fase 5)
+│   │   │   ├── proveedores.rs        # (Fase 7)
+│   │   │   └── compras.rs            # (Fase 7)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -134,7 +175,9 @@ sistema-taller/
 │   │   │   ├── clientes.rs           # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6) pago/ajuste + escribe en auditoria
 │   │   │   ├── metodos_pago.rs       # (Fase 6)
-│   │   │   └── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción
+│   │   │   ├── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción
+│   │   │   ├── proveedores.rs        # (Fase 7) CRUD, mismo patrón que clientes.rs
+│   │   │   └── compras.rs            # (Fase 7) suma stock + costo/precios_historial + auditoria en una sola transacción
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
@@ -143,7 +186,9 @@ sistema-taller/
 │   │   │   ├── cliente.rs            # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
 │   │   │   ├── metodo_pago.rs        # (Fase 6)
-│   │   │   └── venta.rs              # (Fase 5)
+│   │   │   ├── venta.rs              # (Fase 5)
+│   │   │   ├── proveedor.rs          # (Fase 7)
+│   │   │   └── compra.rs             # (Fase 7)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -155,7 +200,8 @@ sistema-taller/
 │   │   ├── 0003_stock.sql            # (Fase 4) stock_movimientos
 │   │   ├── 0004_clientes.sql         # (Fase 6) metodos_pago, clientes, cuenta_corriente_movimientos
 │   │   ├── 0005_clientes_patente.sql # dni_cuit → patente (pedido tras probar la Fase 6)
-│   │   └── 0006_ventas.sql           # (Fase 5) ventas, venta_detalles, venta_pagos
+│   │   ├── 0006_ventas.sql           # (Fase 5) ventas, venta_detalles, venta_pagos
+│   │   └── 0007_compras.sql          # (Fase 7) proveedores, compras, compra_detalles
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo
