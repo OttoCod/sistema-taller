@@ -1,3 +1,4 @@
+pub mod caja;
 pub mod categorias;
 pub mod clientes;
 pub mod compras;

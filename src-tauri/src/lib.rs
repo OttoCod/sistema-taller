@@ -78,6 +78,7 @@ pub fn run() {
             commands::importaciones::importaciones_resolver_fila,
             commands::importaciones::importaciones_aplicar_pendientes,
             commands::importaciones::importaciones_descartar,
+            commands::caja::caja_resumen,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
