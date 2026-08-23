@@ -4,9 +4,11 @@ Este documento describe la arquitectura base construida en la **Fase 1** y
 extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock),
 la **Fase 6** (clientes y cuenta corriente), la **Fase 5** (ventas — se
 implementó después de la 6, ver más abajo por qué), la **Fase 7** (compras
-y recepción) y la **Fase 8** (gestión completa de proveedores y vínculo
-producto-proveedor). El esquema de base de datos completo está en
-[`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+y recepción), la **Fase 8** (gestión completa de proveedores y vínculo
+producto-proveedor), la **Fase 3** (importación de listas de precios desde
+Excel — se implementó después de la 8, en cuanto el negocio mandó el
+archivo real) y la **Fase 9** (caja). El esquema de base de datos completo
+está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -18,8 +20,38 @@ La Fase 2 agregó el primer módulo funcional real: catálogo de productos
 (marcas, categorías, productos, códigos de fabricante, historial de
 precios) con CRUD completo y buscador FTS5.
 
-La Fase 3 (importación de Excel) está pendiente del archivo real del
-negocio (sección 37) y todavía no arrancó.
+La Fase 3 (importación de Excel) se implementó cuando el negocio mandó el
+archivo real (`lista_precio.xlsx`, ~2500 filas). Decisiones clave:
+
+- **Nada se asume de la estructura fija del archivo**: la hoja, la fila de
+  encabezado y las columnas (código/nombre/precio/porcentajes derivados) se
+  detectan dinámicamente por el texto de los encabezados
+  (`services::lector_excel`). Si no encuentra columnas reconocibles con
+  datos reales debajo, falla con un error claro en vez de adivinar.
+- **Lectura siempre de solo lectura**: `calamine` nunca escribe: el Excel
+  original queda intacto.
+- **Nunca se fusiona ni se aplica nada solo**: cada fila se clasifica
+  (`producto_valido` / `seccion` / `requiere_revision` / `ignorada` /
+  `error`), se marcan duplicados de código y de nombre dentro del mismo
+  archivo, y coincidencias contra el catálogo ya existente por
+  `codigo_legado` — todo como sugerencia. Las filas "limpias" (sin ningún
+  flag) arrancan con `decision = crear_nuevo` para no tener que aprobar a
+  mano miles de filas, pero el resto exige resolución manual explícita:
+  crear nuevo, vincular a un producto existente (mostrando "costo actual"
+  vs. "valor del Excel" antes de decidir si se actualiza — nunca se pisa
+  solo) u omitir.
+- **No se categoriza automáticamente**: se probó agrupar productos por los
+  títulos de sección del Excel ("hasta el próximo título"), pero como el
+  último título del archivo real no tenía otro que lo cerrara, terminó
+  categorizando miles de productos que no correspondían. El título de
+  sección se guarda como dato histórico en `categoria_excel_texto`, pero
+  ningún producto importado queda con categoría asignada.
+- **`productos.codigo_legado`** (nuevo campo, sin UNIQUE) guarda el código
+  que traía el Excel, solo para trazabilidad — nunca es el ID interno.
+- Todo el proceso (`importaciones`/`importacion_filas`) queda en
+  "vista previa" hasta que cada fila se resuelve; pasa sola a "confirmada"
+  cuando ya no queda ninguna pendiente. Nunca hay un botón que aplique
+  todo sin revisión.
 
 La Fase 4 agregó el ledger de `stock_movimientos`, la pantalla de Stock
 (ver y ajustar cantidades, con motivo obligatorio) y la de Reposición
@@ -119,9 +151,18 @@ Decisiones clave:
   tiene esquema. Ya estaba instalado y con permiso `opener:default`
   desde la Fase 1, sin cambios de capabilities necesarios.
 
-Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 4)"
-/ "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" abajo; el resto sigue
-siendo tal cual quedó en fases anteriores.
+La Fase 9 (Caja) es, deliberadamente, la más chica de todas: **no agrega
+ninguna tabla nueva**. Tal como ya estaba decidido desde el diseño original
+(`ESQUEMA_BD.md`, punto B), la caja se calcula agrupando `venta_pagos` por
+método de pago sobre las ventas `confirmada` de un día, excluyendo
+`cuenta_corriente` del total cobrado (fiado no es plata que entró). Así "lo
+que dice caja" nunca se puede desincronizar de lo que dicen las ventas —
+no hay nada que recalcular ni mantener sincronizado a mano. Arqueo (contar
+la plata física) y egresos quedan fuera de esta fase, según lo ya definido.
+
+Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
+/ "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /
+"(Fase 9)" abajo; el resto sigue siendo tal cual quedó en fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -160,6 +201,13 @@ sistema-taller/
 │   │   │   ├── ProveedorFormDialog.tsx  # (Fase 7) reutilizado acá para alta/edición, con toggle Activo agregado en Fase 8
 │   │   │   ├── ProveedorProductosDialog.tsx  # (Fase 8) vínculo producto_proveedores por proveedor
 │   │   │   └── proveedorSchema.ts
+│   │   ├── importaciones/            # (Fase 3)
+│   │   │   ├── ImportarExcelPage.tsx # elegir archivo + historial de importaciones
+│   │   │   ├── RevisionImportacionPage.tsx  # resumen + pestañas + aplicar en bloque las limpias
+│   │   │   ├── FilaRevisionRow.tsx   # crear nuevo / vincular / omitir, por fila
+│   │   │   └── ProductoVincularSelector.tsx # combobox para elegir el producto a vincular
+│   │   ├── caja/                     # (Fase 9)
+│   │   │   └── CajaPage.tsx          # selector de fecha + resumen calculado al momento
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
@@ -183,7 +231,9 @@ sistema-taller/
 │   │       ├── ventas.ts             # (Fase 5)
 │   │       ├── proveedores.ts        # (Fase 7)
 │   │       ├── compras.ts            # (Fase 7)
-│   │       └── productoProveedores.ts  # (Fase 8)
+│   │       ├── productoProveedores.ts  # (Fase 8)
+│   │       ├── importaciones.ts      # (Fase 3)
+│   │       └── caja.ts               # (Fase 9)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -201,7 +251,9 @@ sistema-taller/
 │   │   │   ├── ventas.rs             # (Fase 5)
 │   │   │   ├── proveedores.rs        # (Fase 7)
 │   │   │   ├── compras.rs            # (Fase 7)
-│   │   │   └── producto_proveedores.rs  # (Fase 8)
+│   │   │   ├── producto_proveedores.rs  # (Fase 8)
+│   │   │   ├── importaciones.rs      # (Fase 3)
+│   │   │   └── caja.rs               # (Fase 9)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -214,11 +266,14 @@ sistema-taller/
 │   │   │   ├── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción
 │   │   │   ├── proveedores.rs        # (Fase 7) CRUD, mismo patrón que clientes.rs; listar/buscar ampliado en Fase 8
 │   │   │   ├── compras.rs            # (Fase 7) suma stock + costo/precios_historial + auditoria en una sola transacción
-│   │   │   └── producto_proveedores.rs  # (Fase 8) upsert por (producto_id, proveedor_id), quitar = soft-delete
+│   │   │   ├── producto_proveedores.rs  # (Fase 8) upsert por (producto_id, proveedor_id), quitar = soft-delete
+│   │   │   ├── lector_excel.rs       # (Fase 3) puro: detecta estructura + lee filas, sin DB ni clasificación
+│   │   │   ├── importaciones.rs      # (Fase 3) clasificar, marcar duplicados, resolver/aplicar filas
+│   │   │   └── caja.rs               # (Fase 9) agrega venta_pagos, sin tabla propia
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
-│   │   │   ├── producto.rs
+│   │   │   ├── producto.rs           # codigo_legado agregado en Fase 3
 │   │   │   ├── stock.rs              # (Fase 4)
 │   │   │   ├── cliente.rs            # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
@@ -226,7 +281,9 @@ sistema-taller/
 │   │   │   ├── venta.rs              # (Fase 5)
 │   │   │   ├── proveedor.rs          # (Fase 7, activo en GuardarProveedor desde Fase 8)
 │   │   │   ├── compra.rs             # (Fase 7)
-│   │   │   └── producto_proveedor.rs # (Fase 8)
+│   │   │   ├── producto_proveedor.rs # (Fase 8)
+│   │   │   ├── importacion.rs        # (Fase 3)
+│   │   │   └── caja.rs               # (Fase 9)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -240,7 +297,8 @@ sistema-taller/
 │   │   ├── 0005_clientes_patente.sql # dni_cuit → patente (pedido tras probar la Fase 6)
 │   │   ├── 0006_ventas.sql           # (Fase 5) ventas, venta_detalles, venta_pagos
 │   │   ├── 0007_compras.sql          # (Fase 7) proveedores, compras, compra_detalles
-│   │   └── 0008_producto_proveedores.sql  # (Fase 8) vínculo N:N producto-proveedor
+│   │   ├── 0008_producto_proveedores.sql  # (Fase 8) vínculo N:N producto-proveedor
+│   │   └── 0009_importaciones.sql    # (Fase 3) importaciones, importacion_filas, productos.codigo_legado
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo
@@ -318,18 +376,21 @@ si Ventas/Compras lo necesitan).
 | Crate | Para qué |
 |---|---|
 | `tauri` 2.x, `tauri-plugin-opener` | Runtime de la app y apertura de URLs |
+| `tauri-plugin-dialog` (Fase 3) | Selector nativo de archivo para elegir el Excel a importar |
 | `sqlx` (`sqlite`, `runtime-tokio`, `migrate`) | Acceso a SQLite y migraciones versionadas |
 | `tokio` | Runtime async que usan Tauri y sqlx |
 | `thiserror` | `AppError` (sección 5) |
 | `serde`, `serde_json` | (de)serialización IPC |
 | `chrono` | Fechas |
 | `tracing`, `tracing-subscriber`, `tracing-appender` | Logging a archivo (sección 6) |
+| `calamine` (Fase 3) | Lectura de `.xlsx`, siempre solo lectura |
+| `sha2` (Fase 3) | Hash del archivo importado, para avisar si ya se importó antes |
 | `tempfile` (dev) | Test de `db.rs` sobre una base temporal |
 
-Deliberadamente no instalados todavía: `calamine`/`rust_xlsxwriter`
-(Fase 3, Excel), `printpdf` (solo si el enfoque de impresión vía WebView2
-de la Fase 10 no alcanza), `zip` (Fase 12, backups), `tauri-plugin-dialog`
-y `tauri-plugin-fs` (Fase 12, elegir carpeta de backup).
+Deliberadamente no instalados todavía: `rust_xlsxwriter` (no hace falta
+escribir Excel, solo leerlo), `printpdf` (solo si el enfoque de impresión
+vía WebView2 de la Fase 10 no alcanza), `zip` y `tauri-plugin-fs` (Fase 12,
+backups).
 
 ## 4. Estrategia de migraciones
 

@@ -302,7 +302,75 @@ producto absorbido pasa a `estado = 'fusionado'`, sus códigos migran a
 `producto_codigos_fabricante` del principal y su stock se suma vía
 `stock_movimientos` tipo `fusion` — nunca se pierde información.
 
-## Importación de Excel
+## Importación de Excel (Fase 3, implementada en `0009_importaciones.sql`)
+
+El diseño original de este documento (`excel_importaciones` /
+`excel_importacion_filas`, más abajo el historial) se reemplazó por el
+siguiente esquema al analizar el Excel real de la ferretería: la lectura es
+**siempre de solo lectura** sobre el `.xlsx` (nunca se modifica ni
+sobrescribe el archivo original), la estructura de hoja/fila/columnas se
+**detecta dinámicamente** (nunca se asume una posición fija) y cada fila
+queda en estado "en revisión" hasta que una persona decide qué hacer con
+ella — nunca se crea ni vincula un producto automáticamente.
+
+```
+productos
+  codigo_legado   TEXT   -- agregado por esta fase; código del Excel para
+                          -- trazabilidad, NO es UNIQUE (el Excel real trae
+                          -- códigos repetidos apuntando a productos
+                          -- distintos) y nunca es el ID interno
+
+importaciones
+  id                          INTEGER PK
+  archivo_nombre              TEXT NOT NULL
+  archivo_hash                TEXT NOT NULL   -- sha256 del archivo leído, para avisar si ya se importó antes
+  hoja_detectada               TEXT NOT NULL
+  fila_encabezado_detectada    INTEGER NOT NULL
+  columnas_detectadas_json     TEXT NOT NULL   -- qué columnas se detectaron y con qué confianza
+  estado                       TEXT NOT NULL DEFAULT 'en_revision'   -- en_revision | confirmada | descartada
+  total_filas                  INTEGER NOT NULL
+  creada_en                    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  cerrada_en                   TEXT
+
+importacion_filas
+  id                            INTEGER PK
+  importacion_id                INTEGER NOT NULL REFERENCES importaciones(id)
+  fila_excel                    INTEGER NOT NULL   -- número real de fila en el Excel
+  codigo_excel                  TEXT
+  nombre_excel                  TEXT
+  precio_lista_centavos         INTEGER
+  categoria_excel_texto         TEXT     -- título de sección vigente sobre la fila; solo dato histórico,
+                                          -- nunca crea/asigna categoría automáticamente (ver más abajo)
+  precios_calculados_json       TEXT     -- columnas de porcentaje del Excel, solo como referencia de auditoría
+  clasificacion                 TEXT NOT NULL   -- producto_valido | seccion | ignorada | requiere_revision | error
+  motivo_error                  TEXT
+  es_duplicado_codigo           INTEGER NOT NULL DEFAULT 0   -- duplicado dentro del mismo archivo
+  es_posible_duplicado_nombre   INTEGER NOT NULL DEFAULT 0
+  coincide_producto_existente_id INTEGER REFERENCES productos(id)   -- sugerencia por codigo_legado; nunca se aplica sola
+  decision                      TEXT     -- NULL = sin resolver | crear_nuevo | vincular_existente | omitir
+  producto_vinculado_id         INTEGER REFERENCES productos(id)
+  actualizar_costo_en_vinculo   INTEGER NOT NULL DEFAULT 0   -- solo si decision = vincular_existente y el usuario lo pidió
+  producto_id                   INTEGER REFERENCES productos(id)   -- resultado final una vez aplicada la decisión
+  resuelta_en                   TEXT
+```
+
+**Reglas clave, decididas junto con el usuario tras revisar el Excel real:**
+
+- Nunca se asignan categorías automáticamente durante la importación (se
+  probó y una sección mal cerrada en el Excel contaminaba miles de
+  productos no relacionados); `categoria_excel_texto` queda solo como dato
+  histórico para una futura herramienta de categorización manual/asistida.
+- `vincular_existente` nunca toca `nombre`, `marca_id`, `categoria_id`,
+  `descripcion` ni `precio_venta_actual` del producto existente; a lo sumo
+  actualiza `costo_actual` (si se pide explícitamente), agrega una fila a
+  `precios_historial` y `codigo_legado`.
+- Los duplicados (por código o por nombre similar) nunca se fusionan
+  solos: quedan marcados y la resolución es siempre una decisión humana,
+  salvo el lote "limpio" que se puede confirmar en bloque de forma
+  explícita.
+
+<details>
+<summary>Diseño original (reemplazado por el de arriba)</summary>
 
 ```
 excel_importaciones
@@ -324,6 +392,8 @@ excel_importacion_filas
   producto_id_resultante    INTEGER REFERENCES productos(id)
   error_detalle             TEXT
 ```
+
+</details>
 
 ## Sistema (comprobantes, backups, auditoría, configuración, usuarios)
 
