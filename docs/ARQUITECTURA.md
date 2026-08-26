@@ -7,8 +7,9 @@ implementó después de la 6, ver más abajo por qué), la **Fase 7** (compras
 y recepción), la **Fase 8** (gestión completa de proveedores y vínculo
 producto-proveedor), la **Fase 3** (importación de listas de precios desde
 Excel — se implementó después de la 8, en cuanto el negocio mandó el
-archivo real) y la **Fase 9** (caja). El esquema de base de datos completo
-está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+archivo real), la **Fase 9** (caja) y la **Fase 11** (anulaciones y
+devoluciones de venta). El esquema de base de datos completo está en
+[`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -89,8 +90,8 @@ no por dependencia técnica. Decisiones clave:
   descuido.
 - **Número de venta = mismo mecanismo que `codigo_interno` de producto**:
   se deriva del `id` autoincremental, nunca se reutiliza.
-- Todavía no hay anulación (eso es la Fase 11) ni comprobante/impresión
-  (Fase 10) — la confirmación de venta es solo una pantalla en la app.
+- Anulación (Fase 11) y comprobante/impresión (Fase 10) llegaron después —
+  hasta entonces la confirmación de venta era solo una pantalla en la app.
 
 La Fase 7 (Compras y recepción) agregó `proveedores`, `compras` y
 `compra_detalles`. Decisiones clave:
@@ -117,8 +118,9 @@ La Fase 7 (Compras y recepción) agregó `proveedores`, `compras` y
 - **No hay "numero" separado como en `ventas`**: `compras` se identifica
   directamente por su `id` (mostrado como `C-000001`); a diferencia de
   `ventas.numero`, este esquema no necesitaba esa columna extra.
-- Todavía no hay anulación (Fase 11) ni el vínculo `producto_proveedores`
-  (Fase 8).
+- Anulación de compra queda fuera de esta fase (no la pidió el negocio
+  todavía; `compras.estado` ya admite `anulada` pero sin motivo/fecha
+  propios) y el vínculo `producto_proveedores` llegó en la Fase 8.
 
 La Fase 8 (Proveedores) completó lo que la Fase 7 había dejado mínimo.
 Decisiones clave:
@@ -160,9 +162,51 @@ que dice caja" nunca se puede desincronizar de lo que dicen las ventas —
 no hay nada que recalcular ni mantener sincronizado a mano. Arqueo (contar
 la plata física) y egresos quedan fuera de esta fase, según lo ya definido.
 
+La Fase 11 (anulaciones y devoluciones) agregó dos formas de revertir una
+venta, tal como estaban distinguidas desde el diseño original
+(`ESQUEMA_BD.md`, punto E): **anulación** = la venta completa fue un error
+y se cancela entera; **devolución** = la venta fue válida y el cliente
+trae de vuelta uno o más productos después. Ninguna borra la venta ni sus
+filas — `ventas.numero` nunca se reutiliza. Decisiones clave:
+
+- **Anular (`services::ventas::anular`) no necesitó migración**:
+  `ventas.estado`, `motivo_anulacion` y `fecha_anulacion` ya existían desde
+  la Fase 5, dejados previstos a propósito. Revierte, en una sola
+  transacción, el stock que había descontado (`stock_movimientos` tipo
+  `anulacion`) y la deuda de cuenta corriente que haya generado (si algún
+  pago fue `cuenta_corriente`, un movimiento `devolucion` la cancela). La
+  caja (Fase 9) ya filtraba por `estado = 'confirmada'` desde que se
+  escribió esa consulta, así que una venta anulada desaparece de la caja
+  de ese día sin tocar `services::caja`.
+- **Devolución (`devoluciones`, `devolucion_detalles`, migración 0010) es
+  parcial o total**: cada línea se puede devolver hasta la cantidad que le
+  quede sin devolver (sumando devoluciones previas sobre esa misma línea),
+  y el monto de cada línea es proporcional al importe efectivo que quedó
+  en `venta_detalles.subtotal` (con su descuento ya aplicado), no un
+  precio recalculado de cero.
+- **El estado del producto devuelto decide si vuelve a stock**:
+  `estado_producto = 'vuelve_a_stock'` genera un `stock_movimientos` tipo
+  `devolucion`; `en_revision` / `defectuoso` / `dañado` solo quedan
+  registrados, sin tocar el stock.
+- **`metodo_devolucion = 'reduccion_deuda'`** reduce la cuenta corriente
+  del cliente de la venta (exige que no sea "Consumidor final"); los otros
+  tres métodos (`reembolso_efectivo`, `nota_credito`, `cambio_producto`)
+  quedan solo como clasificación — no hay todavía una tabla de notas de
+  crédito ni un vínculo automático a una nueva venta de cambio, porque el
+  esquema original no las especificaba y el negocio no las pidió en esta
+  fase.
+- **Una venta con devoluciones ya registradas no se puede anular**, y una
+  venta anulada no admite devoluciones nuevas: mezclar ambas reversiones
+  sobre las mismas líneas dejaría el ledger de stock/cuenta corriente
+  ambiguo.
+- **Anulación de compras y la tabla genérica `correcciones` quedan fuera
+  de esta fase** — el negocio pidió específicamente anulaciones y
+  devoluciones de venta, no ese alcance más amplio.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
 / "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /
-"(Fase 9)" abajo; el resto sigue siendo tal cual quedó en fases anteriores.
+"(Fase 9)" / "(Fase 11)" abajo; el resto sigue siendo tal cual quedó en
+fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -190,7 +234,7 @@ sistema-taller/
 │   │   │   ├── NuevaVentaPage.tsx    # buscar → carrito → cliente → pagos → confirmar
 │   │   │   ├── ClienteSelector.tsx   # combobox liviano, reutilizado acá
 │   │   │   ├── HistorialVentasPage.tsx
-│   │   │   └── VentaDetalleDialog.tsx
+│   │   │   └── VentaDetalleDialog.tsx  # (Fase 11) + anular / registrar devolución
 │   │   ├── compras/                  # (Fase 7)
 │   │   │   ├── NuevaCompraPage.tsx   # buscar → items → proveedor → confirmar
 │   │   │   ├── ProveedorSelector.tsx # combobox + "crear proveedor nuevo" inline
@@ -228,7 +272,8 @@ sistema-taller/
 │   │       ├── clientes.ts           # (Fase 6)
 │   │       ├── cuentaCorriente.ts    # (Fase 6)
 │   │       ├── metodosPago.ts        # (Fase 6)
-│   │       ├── ventas.ts             # (Fase 5)
+│   │       ├── ventas.ts             # (Fase 5, anularVenta en Fase 11)
+│   │       ├── devoluciones.ts       # (Fase 11)
 │   │       ├── proveedores.ts        # (Fase 7)
 │   │       ├── compras.ts            # (Fase 7)
 │   │       ├── productoProveedores.ts  # (Fase 8)
@@ -248,12 +293,13 @@ sistema-taller/
 │   │   │   ├── clientes.rs           # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
 │   │   │   ├── metodos_pago.rs       # (Fase 6)
-│   │   │   ├── ventas.rs             # (Fase 5)
+│   │   │   ├── ventas.rs             # (Fase 5, ventas_anular en Fase 11)
 │   │   │   ├── proveedores.rs        # (Fase 7)
 │   │   │   ├── compras.rs            # (Fase 7)
 │   │   │   ├── producto_proveedores.rs  # (Fase 8)
 │   │   │   ├── importaciones.rs      # (Fase 3)
-│   │   │   └── caja.rs               # (Fase 9)
+│   │   │   ├── caja.rs               # (Fase 9)
+│   │   │   └── devoluciones.rs       # (Fase 11)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -263,13 +309,14 @@ sistema-taller/
 │   │   │   ├── clientes.rs           # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6) pago/ajuste + escribe en auditoria
 │   │   │   ├── metodos_pago.rs       # (Fase 6)
-│   │   │   ├── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción
+│   │   │   ├── ventas.rs             # (Fase 5) totales recalculados server-side, stock, cuenta corriente y auditoria en una sola transacción; anular() en Fase 11
 │   │   │   ├── proveedores.rs        # (Fase 7) CRUD, mismo patrón que clientes.rs; listar/buscar ampliado en Fase 8
 │   │   │   ├── compras.rs            # (Fase 7) suma stock + costo/precios_historial + auditoria en una sola transacción
 │   │   │   ├── producto_proveedores.rs  # (Fase 8) upsert por (producto_id, proveedor_id), quitar = soft-delete
 │   │   │   ├── lector_excel.rs       # (Fase 3) puro: detecta estructura + lee filas, sin DB ni clasificación
 │   │   │   ├── importaciones.rs      # (Fase 3) clasificar, marcar duplicados, resolver/aplicar filas
-│   │   │   └── caja.rs               # (Fase 9) agrega venta_pagos, sin tabla propia
+│   │   │   ├── caja.rs               # (Fase 9) agrega venta_pagos, sin tabla propia
+│   │   │   └── devoluciones.rs       # (Fase 11) devolución parcial/total, repone stock según estado_producto
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
@@ -278,12 +325,13 @@ sistema-taller/
 │   │   │   ├── cliente.rs            # (Fase 6)
 │   │   │   ├── cuenta_corriente.rs   # (Fase 6)
 │   │   │   ├── metodo_pago.rs        # (Fase 6)
-│   │   │   ├── venta.rs              # (Fase 5)
+│   │   │   ├── venta.rs              # (Fase 5, motivo_anulacion/fecha_anulacion expuestos y AnularVenta en Fase 11)
 │   │   │   ├── proveedor.rs          # (Fase 7, activo en GuardarProveedor desde Fase 8)
 │   │   │   ├── compra.rs             # (Fase 7)
 │   │   │   ├── producto_proveedor.rs # (Fase 8)
 │   │   │   ├── importacion.rs        # (Fase 3)
-│   │   │   └── caja.rs               # (Fase 9)
+│   │   │   ├── caja.rs               # (Fase 9)
+│   │   │   └── devolucion.rs         # (Fase 11)
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -298,7 +346,8 @@ sistema-taller/
 │   │   ├── 0006_ventas.sql           # (Fase 5) ventas, venta_detalles, venta_pagos
 │   │   ├── 0007_compras.sql          # (Fase 7) proveedores, compras, compra_detalles
 │   │   ├── 0008_producto_proveedores.sql  # (Fase 8) vínculo N:N producto-proveedor
-│   │   └── 0009_importaciones.sql    # (Fase 3) importaciones, importacion_filas, productos.codigo_legado
+│   │   ├── 0009_importaciones.sql    # (Fase 3) importaciones, importacion_filas, productos.codigo_legado
+│   │   └── 0010_devoluciones.sql     # (Fase 11) devoluciones, devolucion_detalles
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo

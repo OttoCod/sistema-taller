@@ -241,6 +241,42 @@ una transacción.
 
 ## Devoluciones, anulaciones y correcciones
 
+**Criterio anulación vs. devolución (punto E), tal como se confirmó:**
+anulación = la venta completa fue un error y se cancela; devolución = la
+venta fue válida y el cliente trae de vuelta uno o más productos después.
+Ninguna borra la venta original; `ventas.numero` nunca se reutiliza.
+
+**Implementado en la Fase 11** (`services::ventas::anular`,
+`services::devoluciones`, migración `0010_devoluciones.sql`):
+
+- **Anulación de venta** no necesitó tabla ni columna nueva:
+  `ventas.estado` (`confirmada` | `anulada`), `motivo_anulacion` y
+  `fecha_anulacion` ya existían desde la migración `0006_ventas.sql`,
+  dejados previstos a propósito. `anular()` revierte el stock descontado
+  (`stock_movimientos` tipo `anulacion`) y la deuda de cuenta corriente
+  que haya generado (movimiento `devolucion`, monto negativo), todo en una
+  transacción. Se rechaza si la venta ya está anulada o si ya tiene
+  devoluciones registradas.
+- **Devolución** sí usa las tablas de abajo, sin cambios respecto al
+  diseño original salvo que `devolucion_detalles.cantidad` se valida
+  contra lo que le quede sin devolver a esa línea (sumando devoluciones
+  previas) y `devolucion_detalles.monto` (agregado; no estaba en el
+  diseño original) guarda el importe proporcional de esa línea, calculado
+  sobre `venta_detalles.subtotal` (ya con su descuento aplicado).
+  `estado_producto = 'vuelve_a_stock'` repone stock
+  (`stock_movimientos` tipo `devolucion`); los demás valores solo quedan
+  registrados. `metodo_devolucion = 'reduccion_deuda'` reduce la cuenta
+  corriente del cliente de la venta; los otros tres métodos son solo
+  clasificación en esta fase (no hay tabla de notas de crédito ni vínculo
+  automático a una venta de cambio).
+- **`correcciones` no se implementó en esta fase**: el negocio pidió
+  específicamente anulaciones y devoluciones de venta, no ese mecanismo
+  genérico. Queda documentado abajo para cuando haga falta.
+- **Anulación de compras tampoco se implementó**: `compras.estado` ya
+  admite `anulada` desde la migración `0007_compras.sql`, pero sin
+  `motivo_anulacion`/`fecha_anulacion` propios — se agregan si el negocio
+  lo pide.
+
 ```
 devoluciones
   id                  INTEGER PK
@@ -248,17 +284,19 @@ devoluciones
   fecha               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   motivo              TEXT NOT NULL
   metodo_devolucion   TEXT NOT NULL   -- reembolso_efectivo | nota_credito | cambio_producto | reduccion_deuda
-  total_devuelto      INTEGER NOT NULL
+  total_devuelto      INTEGER NOT NULL   -- centavos; suma de devolucion_detalles.monto
 
 devolucion_detalles
   id                INTEGER PK
   devolucion_id     INTEGER NOT NULL REFERENCES devoluciones(id)
   venta_detalle_id  INTEGER NOT NULL REFERENCES venta_detalles(id)
   cantidad          INTEGER NOT NULL
+  monto             INTEGER NOT NULL   -- centavos; proporcional al subtotal (con descuento) de esa línea
   estado_producto   TEXT NOT NULL   -- vuelve_a_stock | en_revision | defectuoso | dañado
   observacion       TEXT
 
 correcciones     -- genérica: cualquier edición retroactiva, sin tocar el historial original
+                 -- (todavía NO implementada -- ver nota arriba)
   id                INTEGER PK
   entidad_tipo      TEXT NOT NULL
   entidad_id        INTEGER NOT NULL
@@ -268,11 +306,6 @@ correcciones     -- genérica: cualquier edición retroactiva, sin tocar el hist
   motivo            TEXT NOT NULL
   fecha             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 ```
-
-**Criterio anulación vs. devolución (punto E), tal como se confirmó:**
-anulación = la venta completa fue un error y se cancela; devolución = la
-venta fue válida y el cliente trae de vuelta uno o más productos después.
-Ninguna borra la venta original; `ventas.numero` nunca se reutiliza.
 
 ## Fusión de duplicados
 
