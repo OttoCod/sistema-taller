@@ -13,6 +13,8 @@ pub struct Venta {
     pub subtotal: i64,
     pub descuento_total: i64,
     pub total: i64,
+    pub motivo_anulacion: Option<String>,
+    pub fecha_anulacion: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -74,4 +76,10 @@ pub struct CrearVenta {
     pub cliente_id: Option<i64>,
     pub items: Vec<ItemCarrito>,
     pub pagos: Vec<PagoInput>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnularVenta {
+    pub motivo: String,
 }

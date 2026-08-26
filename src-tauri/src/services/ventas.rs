@@ -2,11 +2,12 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::error::{AppError, AppResult};
 use crate::models::cliente::ID_CONSUMIDOR_FINAL;
-use crate::models::venta::{CrearVenta, DetalleVenta, PagoVenta, Venta, VentaDetalle};
+use crate::models::venta::{AnularVenta, CrearVenta, DetalleVenta, PagoVenta, Venta, VentaDetalle};
 
 const SELECT_VENTA: &str = "
     SELECT v.id, v.numero, v.cliente_id, c.nombre AS cliente_nombre,
-           v.fecha, v.estado, v.subtotal, v.descuento_total, v.total
+           v.fecha, v.estado, v.subtotal, v.descuento_total, v.total,
+           v.motivo_anulacion, v.fecha_anulacion
     FROM ventas v
     JOIN clientes c ON c.id = v.cliente_id
 ";
@@ -281,6 +282,138 @@ pub async fn crear(pool: &SqlitePool, datos: CrearVenta) -> AppResult<VentaDetal
     )
     .bind(id)
     .bind(serde_json::json!({ "total": total, "clienteId": cliente_id }).to_string())
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    obtener(pool, id).await
+}
+
+/// Anula una venta completa: revierte el stock descontado, revierte la
+/// deuda de cuenta corriente que haya generado (si pagó con
+/// cuenta_corriente) y marca la venta como 'anulada'. Nunca borra la
+/// venta ni sus filas -- ventas.numero nunca se reutiliza (punto E).
+///
+/// Se rechaza si la venta ya está anulada o si ya tiene devoluciones
+/// registradas (una devolución asume que la venta fue válida; anularla
+/// después mezclaría dos reversiones distintas sobre las mismas líneas).
+pub async fn anular(pool: &SqlitePool, id: i64, datos: AnularVenta) -> AppResult<VentaDetalle> {
+    let motivo = datos.motivo.trim();
+    if motivo.is_empty() {
+        return Err(AppError::Validation(
+            "Tenés que indicar un motivo para anular la venta.".into(),
+        ));
+    }
+
+    let mut tx = pool.begin().await?;
+
+    let estado: Option<(String,)> = sqlx::query_as("SELECT estado FROM ventas WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    let (estado,) =
+        estado.ok_or_else(|| AppError::NotFound(format!("No existe la venta {id}.")))?;
+    if estado == "anulada" {
+        return Err(AppError::Validation("Esta venta ya está anulada.".into()));
+    }
+
+    let (tiene_devoluciones,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM devoluciones WHERE venta_id = ?")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if tiene_devoluciones > 0 {
+        return Err(AppError::Validation(
+            "No se puede anular: esta venta ya tiene devoluciones registradas.".into(),
+        ));
+    }
+
+    // Revierte el stock de cada línea.
+    let detalles: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT producto_id, cantidad FROM venta_detalles WHERE venta_id = ?")
+            .bind(id)
+            .fetch_all(&mut *tx)
+            .await?;
+    for (producto_id, cantidad) in detalles {
+        let (stock_actual,): (i64,) =
+            sqlx::query_as("SELECT stock_actual FROM productos WHERE id = ?")
+                .bind(producto_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let stock_nuevo = stock_actual + cantidad;
+        sqlx::query("UPDATE productos SET stock_actual = ? WHERE id = ?")
+            .bind(stock_nuevo)
+            .bind(producto_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT INTO stock_movimientos
+                (producto_id, tipo, cantidad, stock_resultante, referencia_tipo, referencia_id)
+             VALUES (?, 'anulacion', ?, ?, 'venta', ?)",
+        )
+        .bind(producto_id)
+        .bind(cantidad)
+        .bind(stock_nuevo)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    // Revierte la deuda de cuenta corriente que haya generado esta venta.
+    let monto_cuenta_corriente: (Option<i64>,) = sqlx::query_as(
+        "SELECT SUM(vp.monto) FROM venta_pagos vp
+         JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
+         WHERE vp.venta_id = ? AND mp.nombre = 'cuenta_corriente'",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if let Some(monto) = monto_cuenta_corriente.0.filter(|m| *m > 0) {
+        let cliente_id: (i64,) = sqlx::query_as("SELECT cliente_id FROM ventas WHERE id = ?")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+        let (saldo_actual,): (i64,) =
+            sqlx::query_as("SELECT saldo_cuenta_corriente FROM clientes WHERE id = ?")
+                .bind(cliente_id.0)
+                .fetch_one(&mut *tx)
+                .await?;
+        let saldo_nuevo = saldo_actual - monto;
+        sqlx::query("UPDATE clientes SET saldo_cuenta_corriente = ? WHERE id = ?")
+            .bind(saldo_nuevo)
+            .bind(cliente_id.0)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT INTO cuenta_corriente_movimientos
+                (cliente_id, tipo, monto, saldo_resultante, referencia_tipo, referencia_id, observacion)
+             VALUES (?, 'devolucion', ?, ?, 'venta', ?, 'Anulación de venta')",
+        )
+        .bind(cliente_id.0)
+        .bind(-monto)
+        .bind(saldo_nuevo)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    sqlx::query(
+        "UPDATE ventas
+         SET estado = 'anulada', motivo_anulacion = ?, fecha_anulacion = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(motivo)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO auditoria (entidad_tipo, entidad_id, accion, detalle_json, usuario_id)
+         VALUES ('venta', ?, 'venta_anulada', ?, 1)",
+    )
+    .bind(id)
+    .bind(serde_json::json!({ "motivo": motivo }).to_string())
     .execute(&mut *tx)
     .await?;
 
@@ -615,6 +748,203 @@ mod tests {
                     metodo_pago_id: 1,
                     monto: 100_000,
                 }],
+            },
+        )
+        .await;
+        assert!(matches!(resultado, Err(AppError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn anular_venta_revierte_stock_y_deja_registro() {
+        let pool = pool_de_prueba().await;
+        let producto_id = crear_producto_con_stock(&pool, "Casco", 1_000_000, 10).await;
+
+        let venta = crear(
+            &pool,
+            CrearVenta {
+                cliente_id: None,
+                items: vec![ItemCarrito {
+                    producto_id,
+                    cantidad: 3,
+                    precio_unitario: 1_000_000,
+                    descuento: 0,
+                }],
+                pagos: vec![PagoInput {
+                    metodo_pago_id: 1,
+                    monto: 3_000_000,
+                }],
+            },
+        )
+        .await
+        .unwrap();
+
+        let anulada = anular(
+            &pool,
+            venta.venta.id,
+            AnularVenta {
+                motivo: "Cliente se arrepintió".into(),
+            },
+        )
+        .await
+        .expect("anular venta");
+
+        assert_eq!(anulada.venta.estado, "anulada");
+        assert_eq!(
+            anulada.venta.motivo_anulacion.as_deref(),
+            Some("Cliente se arrepintió")
+        );
+        assert!(anulada.venta.fecha_anulacion.is_some());
+
+        let (stock_actual,): (i64,) =
+            sqlx::query_as("SELECT stock_actual FROM productos WHERE id = ?")
+                .bind(producto_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(stock_actual, 10); // volvió al valor original
+
+        let (tipo, cantidad): (String, i64) = sqlx::query_as(
+            "SELECT tipo, cantidad FROM stock_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(producto_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(tipo, "anulacion");
+        assert_eq!(cantidad, 3);
+    }
+
+    #[tokio::test]
+    async fn anular_venta_fiada_revierte_la_deuda() {
+        let pool = pool_de_prueba().await;
+        let producto_id = crear_producto_con_stock(&pool, "Batería", 4_000_000, 5).await;
+        let cliente_id = clientes::crear(
+            &pool,
+            GuardarCliente {
+                nombre: "Cliente fiado".into(),
+                telefono: None,
+                patente: None,
+                direccion: None,
+                observaciones: None,
+            },
+        )
+        .await
+        .unwrap()
+        .id;
+        let metodo_cc: (i64,) =
+            sqlx::query_as("SELECT id FROM metodos_pago WHERE nombre = 'cuenta_corriente'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let venta = crear(
+            &pool,
+            CrearVenta {
+                cliente_id: Some(cliente_id),
+                items: vec![ItemCarrito {
+                    producto_id,
+                    cantidad: 1,
+                    precio_unitario: 4_000_000,
+                    descuento: 0,
+                }],
+                pagos: vec![PagoInput {
+                    metodo_pago_id: metodo_cc.0,
+                    monto: 4_000_000,
+                }],
+            },
+        )
+        .await
+        .unwrap();
+
+        let cliente = clientes::obtener(&pool, cliente_id).await.unwrap();
+        assert_eq!(cliente.saldo_cuenta_corriente, 4_000_000);
+
+        anular(
+            &pool,
+            venta.venta.id,
+            AnularVenta {
+                motivo: "Error de carga".into(),
+            },
+        )
+        .await
+        .expect("anular venta fiada");
+
+        let cliente = clientes::obtener(&pool, cliente_id).await.unwrap();
+        assert_eq!(cliente.saldo_cuenta_corriente, 0);
+    }
+
+    #[tokio::test]
+    async fn no_se_puede_anular_dos_veces() {
+        let pool = pool_de_prueba().await;
+        let producto_id = crear_producto_con_stock(&pool, "Filtro", 100_000, 5).await;
+        let venta = crear(
+            &pool,
+            CrearVenta {
+                cliente_id: None,
+                items: vec![ItemCarrito {
+                    producto_id,
+                    cantidad: 1,
+                    precio_unitario: 100_000,
+                    descuento: 0,
+                }],
+                pagos: vec![PagoInput {
+                    metodo_pago_id: 1,
+                    monto: 100_000,
+                }],
+            },
+        )
+        .await
+        .unwrap();
+
+        anular(
+            &pool,
+            venta.venta.id,
+            AnularVenta {
+                motivo: "primera anulación".into(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let resultado = anular(
+            &pool,
+            venta.venta.id,
+            AnularVenta {
+                motivo: "segunda anulación".into(),
+            },
+        )
+        .await;
+        assert!(matches!(resultado, Err(AppError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn anular_sin_motivo_falla() {
+        let pool = pool_de_prueba().await;
+        let producto_id = crear_producto_con_stock(&pool, "Bujía", 100_000, 5).await;
+        let venta = crear(
+            &pool,
+            CrearVenta {
+                cliente_id: None,
+                items: vec![ItemCarrito {
+                    producto_id,
+                    cantidad: 1,
+                    precio_unitario: 100_000,
+                    descuento: 0,
+                }],
+                pagos: vec![PagoInput {
+                    metodo_pago_id: 1,
+                    monto: 100_000,
+                }],
+            },
+        )
+        .await
+        .unwrap();
+
+        let resultado = anular(
+            &pool,
+            venta.venta.id,
+            AnularVenta {
+                motivo: "   ".into(),
             },
         )
         .await;

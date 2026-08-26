@@ -2,7 +2,7 @@ use tauri::State;
 
 use crate::db::AppState;
 use crate::error::AppResult;
-use crate::models::venta::{CrearVenta, Venta, VentaDetalle};
+use crate::models::venta::{AnularVenta, CrearVenta, Venta, VentaDetalle};
 use crate::services::ventas;
 
 #[tauri::command]
@@ -21,4 +21,13 @@ pub async fn ventas_crear(
     datos: CrearVenta,
 ) -> AppResult<VentaDetalle> {
     ventas::crear(&state.pool, datos).await
+}
+
+#[tauri::command]
+pub async fn ventas_anular(
+    state: State<'_, AppState>,
+    id: i64,
+    datos: AnularVenta,
+) -> AppResult<VentaDetalle> {
+    ventas::anular(&state.pool, id, datos).await
 }

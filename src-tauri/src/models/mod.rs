@@ -3,6 +3,7 @@ pub mod categoria;
 pub mod cliente;
 pub mod compra;
 pub mod cuenta_corriente;
+pub mod devolucion;
 pub mod importacion;
 pub mod marca;
 pub mod metodo_pago;
