@@ -13,6 +13,8 @@ export type Venta = {
   subtotal: number;
   descuentoTotal: number;
   total: number;
+  motivoAnulacion: string | null;
+  fechaAnulacion: string | null;
 };
 
 export type DetalleVenta = {
@@ -66,4 +68,8 @@ export function obtenerVenta(id: number) {
 
 export function crearVenta(datos: CrearVenta) {
   return invoke<VentaDetalle>("ventas_crear", { datos });
+}
+
+export function anularVenta(id: number, motivo: string) {
+  return invoke<VentaDetalle>("ventas_anular", { id, datos: { motivo } });
 }
