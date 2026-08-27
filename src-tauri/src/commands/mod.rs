@@ -2,6 +2,8 @@ pub mod caja;
 pub mod categorias;
 pub mod clientes;
 pub mod compras;
+pub mod comprobantes;
+pub mod configuracion;
 pub mod cuenta_corriente;
 pub mod devoluciones;
 pub mod importaciones;

@@ -82,6 +82,12 @@ pub fn run() {
             commands::importaciones::importaciones_aplicar_pendientes,
             commands::importaciones::importaciones_descartar,
             commands::caja::caja_resumen,
+            commands::configuracion::configuracion_obtener_negocio,
+            commands::configuracion::configuracion_guardar_negocio,
+            commands::comprobantes::comprobantes_obtener_o_crear,
+            commands::comprobantes::comprobantes_listar_por_venta,
+            commands::comprobantes::comprobantes_registrar_evento,
+            commands::comprobantes::comprobantes_listar_eventos,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
