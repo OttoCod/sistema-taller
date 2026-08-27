@@ -34,3 +34,26 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
+
+/*
+ * Impresión de comprobantes (Fase 10): toda la app se sirve en una sola
+ * ventana webview, así que "imprimir" siempre imprimiría el sidebar y
+ * el resto de la pantalla si no se acota. El truco estándar: ocultar
+ * todo excepto el contenido marcado con #comprobante-imprimible, que
+ * ComprobanteDialog.tsx muestra solo mientras esa vista está abierta.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #comprobante-imprimible,
+  #comprobante-imprimible * {
+    visibility: visible;
+  }
+  #comprobante-imprimible {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}
