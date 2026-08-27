@@ -7,8 +7,10 @@ implementó después de la 6, ver más abajo por qué), la **Fase 7** (compras
 y recepción), la **Fase 8** (gestión completa de proveedores y vínculo
 producto-proveedor), la **Fase 3** (importación de listas de precios desde
 Excel — se implementó después de la 8, en cuanto el negocio mandó el
-archivo real), la **Fase 9** (caja) y la **Fase 11** (anulaciones y
-devoluciones de venta). El esquema de base de datos completo está en
+archivo real), la **Fase 9** (caja), la **Fase 11** (anulaciones y
+devoluciones de venta) y la **Fase 10** (comprobantes e impresión — se
+implementó después de la 11, no por dependencia técnica sino porque así
+lo pidió el negocio). El esquema de base de datos completo está en
 [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
@@ -90,8 +92,9 @@ no por dependencia técnica. Decisiones clave:
   descuido.
 - **Número de venta = mismo mecanismo que `codigo_interno` de producto**:
   se deriva del `id` autoincremental, nunca se reutiliza.
-- Anulación (Fase 11) y comprobante/impresión (Fase 10) llegaron después —
-  hasta entonces la confirmación de venta era solo una pantalla en la app.
+- Anulación (Fase 11) y comprobante/impresión (Fase 10) llegaron después
+  — hasta entonces la confirmación de venta era solo una pantalla en la
+  app, sin nada para imprimirle al cliente.
 
 La Fase 7 (Compras y recepción) agregó `proveedores`, `compras` y
 `compra_detalles`. Decisiones clave:
@@ -203,10 +206,56 @@ filas — `ventas.numero` nunca se reutiliza. Decisiones clave:
   de esta fase** — el negocio pidió específicamente anulaciones y
   devoluciones de venta, no ese alcance más amplio.
 
+La Fase 10 (comprobantes e impresión) agregó `comprobantes` y
+`comprobante_eventos` (migración `0011_comprobantes.sql`) y una ficha
+mínima de **Configuración** (`configuracion_obtener_negocio` /
+`configuracion_guardar_negocio`, sobre la tabla clave-valor `configuracion`
+que ya existía desde la Fase 1) con lo único que necesita el encabezado de
+un comprobante: nombre, dirección y teléfono del negocio. Decisiones
+clave:
+
+- **El enfoque de impresión es vía WebView2** (`window.print()` sobre una
+  vista HTML pensada para imprimir), no un generador de PDF en Rust — tal
+  como estaba previsto en la sección de dependencias de este documento.
+  `ComprobanteDialog.tsx` marca el contenido imprimible con
+  `#comprobante-imprimible`; una regla `@media print` en
+  `styles/globals.css` oculta todo lo demás (sidebar, overlay del diálogo)
+  para que no se imprima la app entera.
+- **Un comprobante por venta y por tipo** (`UNIQUE (venta_id, tipo)`):
+  pedirlo de nuevo (`obtener_o_crear`) devuelve el mismo número en vez de
+  generar uno nuevo — el número identifica el comprobante, no cada
+  impresión. Cada clic en "Imprimir" sí deja su propia fila en
+  `comprobante_eventos` (tipo `impreso`), y esa cuenta se muestra en la
+  pantalla ("Ya se imprimió N veces") para evitar reimpresiones por
+  confusión.
+- **El número se deriva del id**, mismo mecanismo que `ventas.numero` y
+  `productos.codigo_interno`: `TCK-000123` para ticket, `A4-000123` para
+  A4 — nunca se recalcula ni se reutiliza.
+- **`comprobantes::listar_por_venta` es de solo lectura y nunca crea
+  nada**: `VentaDetalleDialog` la usa para mostrar "Ya generado: ..." sin
+  generar un comprobante solo por abrir el detalle de una venta. El
+  comprobante real solo se crea cuando la persona clickea "Imprimir
+  ticket" o "Imprimir A4".
+- **Solo se puede generar un comprobante de una venta `confirmada`** —
+  igual que las devoluciones (Fase 11), una venta anulada no genera
+  comprobantes nuevos.
+- **`tipo_evento = 'pdf_generado'` queda en el esquema pero no se dispara
+  todavía**: no hay forma confiable de saber si el usuario eligió
+  "Microsoft Print to PDF" en el diálogo nativo de impresión de Windows en
+  vez de una impresora física, así que esta fase solo registra
+  `'impreso'`. Si hace falta distinguirlo más adelante, ahí se agrega
+  `printpdf` (crate ya anotado como "no instalado todavía" en la sección
+  de dependencias).
+- **Sin logo ni formato de numeración configurable**: el esquema original
+  mencionaba `logo` como dato de negocio y "formato, numeración" como
+  configuración de comprobante, pero el negocio no los pidió en esta fase
+  y hubieran requerido infraestructura extra (subir/mostrar una imagen,
+  una UI de formato) sin un caso de uso concreto todavía.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
 / "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /
-"(Fase 9)" / "(Fase 11)" abajo; el resto sigue siendo tal cual quedó en
-fases anteriores.
+"(Fase 9)" / "(Fase 10)" / "(Fase 11)" abajo; el resto sigue siendo tal
+cual quedó en fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -234,7 +283,8 @@ sistema-taller/
 │   │   │   ├── NuevaVentaPage.tsx    # buscar → carrito → cliente → pagos → confirmar
 │   │   │   ├── ClienteSelector.tsx   # combobox liviano, reutilizado acá
 │   │   │   ├── HistorialVentasPage.tsx
-│   │   │   └── VentaDetalleDialog.tsx  # (Fase 11) + anular / registrar devolución
+│   │   │   ├── VentaDetalleDialog.tsx  # (Fase 11) + anular / registrar devolución; (Fase 10) + imprimir comprobante
+│   │   │   └── ComprobanteDialog.tsx   # (Fase 10) vista imprimible (ticket / A4)
 │   │   ├── compras/                  # (Fase 7)
 │   │   │   ├── NuevaCompraPage.tsx   # buscar → items → proveedor → confirmar
 │   │   │   ├── ProveedorSelector.tsx # combobox + "crear proveedor nuevo" inline
@@ -252,6 +302,8 @@ sistema-taller/
 │   │   │   └── ProductoVincularSelector.tsx # combobox para elegir el producto a vincular
 │   │   ├── caja/                     # (Fase 9)
 │   │   │   └── CajaPage.tsx          # selector de fecha + resumen calculado al momento
+│   │   ├── configuracion/            # (Fase 10)
+│   │   │   └── ConfiguracionPage.tsx # ficha del negocio (encabezado del comprobante)
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
@@ -278,7 +330,9 @@ sistema-taller/
 │   │       ├── compras.ts            # (Fase 7)
 │   │       ├── productoProveedores.ts  # (Fase 8)
 │   │       ├── importaciones.ts      # (Fase 3)
-│   │       └── caja.ts               # (Fase 9)
+│   │       ├── caja.ts               # (Fase 9)
+│   │       ├── comprobantes.ts       # (Fase 10)
+│   │       └── configuracion.ts      # (Fase 10)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -299,7 +353,9 @@ sistema-taller/
 │   │   │   ├── producto_proveedores.rs  # (Fase 8)
 │   │   │   ├── importaciones.rs      # (Fase 3)
 │   │   │   ├── caja.rs               # (Fase 9)
-│   │   │   └── devoluciones.rs       # (Fase 11)
+│   │   │   ├── devoluciones.rs       # (Fase 11)
+│   │   │   ├── comprobantes.rs       # (Fase 10)
+│   │   │   └── configuracion.rs      # (Fase 10)
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -316,7 +372,9 @@ sistema-taller/
 │   │   │   ├── lector_excel.rs       # (Fase 3) puro: detecta estructura + lee filas, sin DB ni clasificación
 │   │   │   ├── importaciones.rs      # (Fase 3) clasificar, marcar duplicados, resolver/aplicar filas
 │   │   │   ├── caja.rs               # (Fase 9) agrega venta_pagos, sin tabla propia
-│   │   │   └── devoluciones.rs       # (Fase 11) devolución parcial/total, repone stock según estado_producto
+│   │   │   ├── devoluciones.rs       # (Fase 11) devolución parcial/total, repone stock según estado_producto
+│   │   │   ├── comprobantes.rs       # (Fase 10) obtener_o_crear (numero derivado del id), listar_por_venta de solo lectura, eventos
+│   │   │   └── configuracion.rs      # (Fase 10) obtener_negocio/guardar_negocio sobre la tabla clave-valor
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
@@ -331,7 +389,9 @@ sistema-taller/
 │   │   │   ├── producto_proveedor.rs # (Fase 8)
 │   │   │   ├── importacion.rs        # (Fase 3)
 │   │   │   ├── caja.rs               # (Fase 9)
-│   │   │   └── devolucion.rs         # (Fase 11)
+│   │   │   ├── devolucion.rs         # (Fase 11)
+│   │   │   ├── comprobante.rs        # (Fase 10)
+│   │   │   └── configuracion.rs      # (Fase 10) ConfiguracionNegocio
 │   │   ├── db.rs                     # pool SQLite, migraciones, AppState
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
@@ -347,7 +407,8 @@ sistema-taller/
 │   │   ├── 0007_compras.sql          # (Fase 7) proveedores, compras, compra_detalles
 │   │   ├── 0008_producto_proveedores.sql  # (Fase 8) vínculo N:N producto-proveedor
 │   │   ├── 0009_importaciones.sql    # (Fase 3) importaciones, importacion_filas, productos.codigo_legado
-│   │   └── 0010_devoluciones.sql     # (Fase 11) devoluciones, devolucion_detalles
+│   │   ├── 0010_devoluciones.sql     # (Fase 11) devoluciones, devolucion_detalles
+│   │   └── 0011_comprobantes.sql     # (Fase 10) comprobantes, comprobante_eventos
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo
@@ -437,9 +498,9 @@ si Ventas/Compras lo necesitan).
 | `tempfile` (dev) | Test de `db.rs` sobre una base temporal |
 
 Deliberadamente no instalados todavía: `rust_xlsxwriter` (no hace falta
-escribir Excel, solo leerlo), `printpdf` (solo si el enfoque de impresión
-vía WebView2 de la Fase 10 no alcanza), `zip` y `tauri-plugin-fs` (Fase 12,
-backups).
+escribir Excel, solo leerlo), `printpdf` (la Fase 10 terminó usando
+`window.print()` vía WebView2, que alcanzó sin necesidad de generar PDF
+desde Rust), `zip` y `tauri-plugin-fs` (Fase 12, backups).
 
 ## 4. Estrategia de migraciones
 

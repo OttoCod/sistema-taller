@@ -430,6 +430,17 @@ excel_importacion_filas
 
 ## Sistema (comprobantes, backups, auditoría, configuración, usuarios)
 
+**Comprobantes implementados en la Fase 10** (`services::comprobantes`,
+migración `0011_comprobantes.sql`): sin cambios respecto al diseño
+original salvo `UNIQUE (venta_id, tipo)` en `comprobantes` (agregado; no
+estaba en el diseño original) — un solo comprobante por venta y por tipo,
+para que pedirlo de nuevo (`obtener_o_crear`) devuelva el mismo `numero`
+en vez de generar uno nuevo cada vez que alguien lo reimprime. `numero` se
+deriva del `id` igual que `ventas.numero` (`TCK-000123` / `A4-000123`).
+`tipo_evento = 'pdf_generado'` queda en el `CHECK` pero no se dispara
+todavía: no hay forma confiable de distinguir "imprimió en papel" de
+"eligió Microsoft Print to PDF" desde un solo `window.print()`.
+
 ```
 comprobantes
   id          INTEGER PK
@@ -437,6 +448,7 @@ comprobantes
   numero      TEXT NOT NULL
   tipo        TEXT NOT NULL   -- ticket | a4
   creado_en   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  UNIQUE (venta_id, tipo)
 
 comprobante_eventos
   id              INTEGER PK
@@ -480,3 +492,11 @@ dirección, teléfono, logo), de comprobante (formato, numeración) y de
 formato de moneda (`moneda.decimales_visibles`, por ahora `0` para
 Argentina — punto G). Al ser clave-valor, agregar una configuración nueva
 nunca requiere una migración de esquema.
+
+**Implementado en la Fase 10** (`services::configuracion`): solo
+`negocio.nombre`, `negocio.direccion` y `negocio.telefono` — lo único que
+necesita el encabezado del comprobante. `logo` y el formato/numeración de
+comprobante quedan sin implementar (el negocio no los pidió y hubieran
+requerido infraestructura extra sin un caso de uso concreto todavía);
+`moneda.decimales_visibles` tampoco se agregó — `money.ts` sigue
+hardcodeado a 0 decimales, sin leer de acá.
