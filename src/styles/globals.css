@@ -38,22 +38,26 @@ body {
 /*
  * Impresión de comprobantes (Fase 10): toda la app se sirve en una sola
  * ventana webview, así que "imprimir" siempre imprimiría el sidebar y
- * el resto de la pantalla si no se acota. El truco estándar: ocultar
- * todo excepto el contenido marcado con #comprobante-imprimible, que
- * ComprobanteDialog.tsx muestra solo mientras esa vista está abierta.
+ * el resto de la pantalla si no se acota.
+ *
+ * Primer intento (ocultar todo con `visibility: hidden` salvo el
+ * contenido a imprimir) daba una hoja en blanco en la práctica: el
+ * contenido vivía dentro del diálogo de Radix, que tiene `position:
+ * fixed` y `transform` -- un `transform` en un ancestro, aunque sea un
+ * no-op visual, crea un nuevo contenedor de posicionamiento para sus
+ * descendientes `position: absolute`, así que el contenido terminaba
+ * posicionado en un lugar que no correspondía a la hoja impresa.
+ *
+ * Solución: ComprobanteDialog.tsx porta el contenido a imprimir a un
+ * <div data-print-root> propio, agregado directo como hijo de <body>
+ * (sin ningún ancestro con transform/position fija), oculto en pantalla
+ * y mostrado solo acá.
  */
 @media print {
-  body * {
-    visibility: hidden;
+  body > *:not([data-print-root]) {
+    display: none !important;
   }
-  #comprobante-imprimible,
-  #comprobante-imprimible * {
-    visibility: visible;
-  }
-  #comprobante-imprimible {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
+  [data-print-root] {
+    display: block !important;
   }
 }

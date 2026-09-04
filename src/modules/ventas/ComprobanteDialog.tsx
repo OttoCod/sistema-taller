@@ -1,12 +1,15 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   listarEventosComprobante,
   obtenerOCrearComprobante,
   registrarEventoComprobante,
+  type Comprobante,
   type TipoComprobante,
 } from "../../lib/api/comprobantes";
-import { obtenerConfiguracionNegocio } from "../../lib/api/configuracion";
+import { obtenerConfiguracionNegocio, type ConfiguracionNegocio } from "../../lib/api/configuracion";
 import type { VentaDetalle } from "../../lib/api/ventas";
 import { formatearCentavos } from "../../lib/money";
 
@@ -21,9 +24,130 @@ const TEXTO_TIPO: Record<TipoComprobante, string> = {
   a4: "Comprobante A4",
 };
 
+type ContenidoProps = {
+  tipo: TipoComprobante;
+  negocio: ConfiguracionNegocio;
+  comprobante: Comprobante;
+  venta: VentaDetalle;
+};
+
+/**
+ * El contenido del comprobante en sí, reutilizado tal cual tanto para la
+ * vista previa en pantalla como para lo que efectivamente se imprime (ver
+ * `usePrintPortal` más abajo) -- así nunca pueden desincronizarse.
+ */
+function ComprobanteContenido({ tipo, negocio, comprobante, venta }: ContenidoProps) {
+  return (
+    <div
+      className={`flex flex-col gap-2 border border-line p-4 text-sm ${
+        tipo === "ticket" ? "mx-auto max-w-[300px] font-mono text-xs" : ""
+      }`}
+    >
+      <div className="text-center">
+        <p className="font-semibold text-ink">{negocio.nombre || "(sin nombre configurado)"}</p>
+        {negocio.direccion && <p className="text-ink-muted">{negocio.direccion}</p>}
+        {negocio.telefono && <p className="text-ink-muted">{negocio.telefono}</p>}
+      </div>
+
+      <div className="border-t border-line pt-2 text-ink-muted">
+        <p>
+          {TEXTO_TIPO[tipo]} {comprobante.numero}
+        </p>
+        <p>
+          Venta V-{String(venta.numero).padStart(6, "0")} · {venta.fecha.slice(0, 10)}
+        </p>
+        <p>Cliente: {venta.clienteNombre}</p>
+      </div>
+
+      <table className="w-full border-t border-line pt-2 text-left">
+        <thead>
+          <tr className="text-ink-muted">
+            <th className="py-1">Producto</th>
+            <th className="py-1 text-right">Cant.</th>
+            <th className="py-1 text-right">Precio</th>
+            <th className="py-1 text-right">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {venta.detalles.map((d) => (
+            <tr key={d.id}>
+              <td className="py-0.5">{d.productoNombre}</td>
+              <td className="py-0.5 text-right font-mono">{d.cantidad}</td>
+              <td className="py-0.5 text-right font-mono">{formatearCentavos(d.precioUnitario)}</td>
+              <td className="py-0.5 text-right font-mono">{formatearCentavos(d.subtotal)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="flex flex-col gap-0.5 border-t border-line pt-2">
+        <div className="flex justify-between text-ink-muted">
+          <span>Subtotal</span>
+          <span className="font-mono">{formatearCentavos(venta.subtotal)}</span>
+        </div>
+        <div className="flex justify-between text-ink-muted">
+          <span>Descuento</span>
+          <span className="font-mono">{formatearCentavos(venta.descuentoTotal)}</span>
+        </div>
+        <div className="flex justify-between font-semibold text-ink">
+          <span>Total</span>
+          <span className="font-mono">{formatearCentavos(venta.total)}</span>
+        </div>
+      </div>
+
+      <div className="border-t border-line pt-2">
+        {venta.pagos.map((p) => (
+          <div key={p.id} className="flex justify-between text-ink-muted">
+            <span>{p.metodoPagoNombre}</span>
+            <span className="font-mono">{formatearCentavos(p.monto)}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className="border-t border-line pt-2 text-center text-xs text-ink-muted">
+        Comprobante interno, no válido como factura.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Portar el contenido a imprimir a un nodo propio, directo bajo <body>,
+ * en vez de imprimir lo que está adentro del diálogo. Ocultar/mostrar con
+ * `visibility` un elemento que vive dentro de un Dialog con posición fija
+ * y `transform` (como el de Radix) es frágil -- un `transform`, aunque
+ * sea un no-op para pantalla, crea un nuevo contenedor de posicionamiento
+ * para sus descendientes `position: absolute`, y en la práctica terminó
+ * imprimiendo una hoja en blanco. Un nodo separado, hijo directo de
+ * <body> y sin ningún ancestro con `transform`/`position: fixed`, no
+ * tiene ese problema.
+ */
+function usePrintPortal(activo: boolean) {
+  const [contenedor, setContenedor] = useState<HTMLElement | null>(null);
+  const refContenedor = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!activo) return;
+    const nodo = document.createElement("div");
+    nodo.setAttribute("data-print-root", "true");
+    nodo.style.display = "none";
+    document.body.appendChild(nodo);
+    refContenedor.current = nodo;
+    setContenedor(nodo);
+    return () => {
+      nodo.remove();
+      refContenedor.current = null;
+      setContenedor(null);
+    };
+  }, [activo]);
+
+  return contenedor;
+}
+
 export function ComprobanteDialog({ venta, tipo, onOpenChange }: Props) {
   const open = venta !== null;
   const queryClient = useQueryClient();
+  const printRoot = usePrintPortal(open);
 
   const negocioQuery = useQuery({
     queryKey: ["configuracion", "negocio"],
@@ -53,100 +177,38 @@ export function ComprobanteDialog({ venta, tipo, onOpenChange }: Props) {
 
   const cargando = negocioQuery.isLoading || comprobanteQuery.isLoading || !venta;
   const yaImpreso = (eventosQuery.data ?? []).filter((e) => e.tipoEvento === "impreso").length;
+  const listoParaImprimir = !cargando && negocioQuery.data && comprobanteQuery.data && venta;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 print:hidden" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 max-h-[85vh] w-[90vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-line bg-surface p-6 shadow-lg print:static print:h-auto print:max-h-none print:w-auto print:max-w-none print:translate-x-0 print:translate-y-0 print:border-none print:p-0 print:shadow-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 max-h-[85vh] w-[90vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-line bg-surface p-6 shadow-lg print:hidden">
           {cargando ? (
-            <p className="text-sm text-ink-muted print:hidden">Cargando...</p>
+            <p className="text-sm text-ink-muted">Cargando...</p>
           ) : (
             <>
-              <div className="flex items-center justify-between print:hidden">
+              <div className="flex items-center justify-between">
                 <Dialog.Title className="text-lg font-semibold text-ink">
                   {TEXTO_TIPO[tipo]} — {comprobanteQuery.data?.numero}
                 </Dialog.Title>
               </div>
               {yaImpreso > 0 && (
-                <p className="mt-1 text-xs text-ink-muted print:hidden">
+                <p className="mt-1 text-xs text-ink-muted">
                   Ya se imprimió {yaImpreso} {yaImpreso === 1 ? "vez" : "veces"}.
                 </p>
               )}
 
-              <div
-                id="comprobante-imprimible"
-                className={`mt-4 flex flex-col gap-2 border border-line p-4 text-sm ${
-                  tipo === "ticket" ? "mx-auto max-w-[300px] font-mono text-xs" : ""
-                }`}
-              >
-                <div className="text-center">
-                  <p className="font-semibold text-ink">{negocioQuery.data?.nombre || "(sin nombre configurado)"}</p>
-                  {negocioQuery.data?.direccion && <p className="text-ink-muted">{negocioQuery.data.direccion}</p>}
-                  {negocioQuery.data?.telefono && <p className="text-ink-muted">{negocioQuery.data.telefono}</p>}
-                </div>
-
-                <div className="border-t border-line pt-2 text-ink-muted">
-                  <p>
-                    {TEXTO_TIPO[tipo]} {comprobanteQuery.data?.numero}
-                  </p>
-                  <p>
-                    Venta V-{String(venta.numero).padStart(6, "0")} · {venta.fecha.slice(0, 10)}
-                  </p>
-                  <p>Cliente: {venta.clienteNombre}</p>
-                </div>
-
-                <table className="w-full border-t border-line pt-2 text-left">
-                  <thead>
-                    <tr className="text-ink-muted">
-                      <th className="py-1">Producto</th>
-                      <th className="py-1 text-right">Cant.</th>
-                      <th className="py-1 text-right">Precio</th>
-                      <th className="py-1 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {venta.detalles.map((d) => (
-                      <tr key={d.id}>
-                        <td className="py-0.5">{d.productoNombre}</td>
-                        <td className="py-0.5 text-right font-mono">{d.cantidad}</td>
-                        <td className="py-0.5 text-right font-mono">{formatearCentavos(d.precioUnitario)}</td>
-                        <td className="py-0.5 text-right font-mono">{formatearCentavos(d.subtotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <div className="flex flex-col gap-0.5 border-t border-line pt-2">
-                  <div className="flex justify-between text-ink-muted">
-                    <span>Subtotal</span>
-                    <span className="font-mono">{formatearCentavos(venta.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-ink-muted">
-                    <span>Descuento</span>
-                    <span className="font-mono">{formatearCentavos(venta.descuentoTotal)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-ink">
-                    <span>Total</span>
-                    <span className="font-mono">{formatearCentavos(venta.total)}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-line pt-2">
-                  {venta.pagos.map((p) => (
-                    <div key={p.id} className="flex justify-between text-ink-muted">
-                      <span>{p.metodoPagoNombre}</span>
-                      <span className="font-mono">{formatearCentavos(p.monto)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="border-t border-line pt-2 text-center text-xs text-ink-muted">
-                  Comprobante interno, no válido como factura.
-                </p>
+              <div className="mt-4">
+                <ComprobanteContenido
+                  tipo={tipo}
+                  negocio={negocioQuery.data!}
+                  comprobante={comprobanteQuery.data!}
+                  venta={venta}
+                />
               </div>
 
-              <div className="mt-5 flex justify-end gap-2 print:hidden">
+              <div className="mt-5 flex justify-end gap-2">
                 <Dialog.Close asChild>
                   <button
                     type="button"
@@ -168,6 +230,18 @@ export function ComprobanteDialog({ venta, tipo, onOpenChange }: Props) {
           )}
         </Dialog.Content>
       </Dialog.Portal>
+
+      {printRoot &&
+        listoParaImprimir &&
+        createPortal(
+          <ComprobanteContenido
+            tipo={tipo}
+            negocio={negocioQuery.data!}
+            comprobante={comprobanteQuery.data!}
+            venta={venta}
+          />,
+          printRoot,
+        )}
     </Dialog.Root>
   );
 }
