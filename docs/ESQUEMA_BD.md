@@ -213,6 +213,14 @@ una tabla física de movimientos de caja** (punto B); esto evita que "lo que
 dice caja" se desincronice de "lo que dicen las ventas". Cuando se agregue
 arqueo/egresos (fuera de V1), ahí se crea una tabla de sesiones de caja.
 
+**Consecuencia a resolver en esa fase:** como la caja solo suma plata que
+*entra* (`venta_pagos` de ventas confirmadas), una devolución con
+`metodo_devolucion = 'reembolso_efectivo'` (Fase 11) no reduce el total
+cobrado del día — la venta original sigue siendo válida y confirmada.
+Anular la venta sí lo reduce, porque deja de ser `confirmada`. El
+reembolso en efectivo es, conceptualmente, un egreso: entra en el alcance
+de la tabla de sesiones/movimientos de caja de esa fase futura.
+
 ## Compras y recepción
 
 ```

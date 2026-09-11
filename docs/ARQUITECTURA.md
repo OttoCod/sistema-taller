@@ -165,6 +165,16 @@ que dice caja" nunca se puede desincronizar de lo que dicen las ventas —
 no hay nada que recalcular ni mantener sincronizado a mano. Arqueo (contar
 la plata física) y egresos quedan fuera de esta fase, según lo ya definido.
 
+**Pendiente conocido para cuando se encare arqueo/egresos** (confirmado
+con el negocio al probar la Fase 11): una devolución con
+`metodo_devolucion = 'reembolso_efectivo'` **no baja el total cobrado del
+día**. La venta sigue `confirmada` (fue válida; solo volvió parte de la
+mercadería) y hoy no existe ningún registro de plata *saliendo* de la
+caja — solo de `venta_pagos` entrando. Anular una venta sí la baja,
+porque esa venta entera deja de ser `confirmada` y se cae del cálculo.
+Resolverlo bien implica agregar el concepto de egreso que el diseño
+original ya dejó anotado para esa fase, no parchear la consulta de caja.
+
 La Fase 11 (anulaciones y devoluciones) agregó dos formas de revertir una
 venta, tal como estaban distinguidas desde el diseño original
 (`ESQUEMA_BD.md`, punto E): **anulación** = la venta completa fue un error
