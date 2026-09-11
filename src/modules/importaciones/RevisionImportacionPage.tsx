@@ -10,6 +10,7 @@ import {
   type ImportacionFila,
 } from "../../lib/api/importaciones";
 import { AppError } from "../../lib/api/client";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { FilaRevisionRow } from "./FilaRevisionRow";
 
 type Pestana =
@@ -38,6 +39,7 @@ export function RevisionImportacionPage() {
   const navigate = useNavigate();
   const [pestana, setPestana] = useState<Pestana>("validas");
   const [error, setError] = useState<string | null>(null);
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false);
 
   const importacionQuery = useQuery({
     queryKey: ["importaciones", importacionId],
@@ -265,11 +267,7 @@ export function RevisionImportacionPage() {
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm("¿Descartar esta importación? No se va a aplicar nada de lo que quedó pendiente.")) {
-                descartarMutation.mutate();
-              }
-            }}
+            onClick={() => setConfirmarDescarte(true)}
             disabled={descartarMutation.isPending}
             className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-2"
           >
@@ -277,6 +275,21 @@ export function RevisionImportacionPage() {
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        abierto={confirmarDescarte}
+        titulo="Descartar esta importación"
+        mensaje={[
+          "No se va a aplicar nada de lo que quedó pendiente: las filas sin resolver se descartan.",
+          "Los productos que ya creaste o vinculaste desde esta importación no se tocan, quedan como están.",
+        ]}
+        textoConfirmar="Sí, descartar"
+        textoCancelar="No, seguir revisando"
+        peligrosa
+        confirmando={descartarMutation.isPending}
+        onConfirmar={() => descartarMutation.mutate()}
+        onCancelar={() => setConfirmarDescarte(false)}
+      />
     </div>
   );
 }

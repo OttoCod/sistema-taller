@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { guardarConfiguracionNegocio, obtenerConfiguracionNegocio } from "../../lib/api/configuracion";
 import { AppError } from "../../lib/api/client";
+import { getHealthCheck } from "../../lib/api/system";
 import { BackupsSection } from "./BackupsSection";
 
 export function ConfiguracionPage() {
@@ -107,6 +108,39 @@ export function ConfiguracionPage() {
       )}
 
       <BackupsSection />
+
+      <EstadoDelSistema />
     </div>
+  );
+}
+
+/**
+ * Antes vivía en Inicio, que es la pantalla que se abre todos los días:
+ * la ruta del archivo y la versión del motor no le sirven a quien atiende
+ * el mostrador. Acá abajo sí, para cuando haya que diagnosticar algo.
+ */
+function EstadoDelSistema() {
+  const { data, error } = useQuery({ queryKey: ["system", "health-check"], queryFn: getHealthCheck });
+
+  return (
+    <details className="rounded-lg border border-line bg-surface p-4">
+      <summary className="cursor-pointer text-sm font-medium text-ink">Estado del sistema</summary>
+      {error && <p className="mt-2 text-sm text-danger">No se pudo consultar la base de datos.</p>}
+      {data && (
+        <dl className="mt-3 flex flex-col gap-1 text-sm">
+          {[
+            ["Versión de la app", data.appVersion],
+            ["Versión de esquema", String(data.schemaVersion)],
+            ["Motor SQLite", data.sqliteVersion],
+            ["Archivo de datos", data.dbPath],
+          ].map(([etiqueta, valor]) => (
+            <div key={etiqueta} className="flex justify-between gap-4 border-b border-line py-1 last:border-b-0">
+              <dt className="shrink-0 text-ink-muted">{etiqueta}</dt>
+              <dd className="break-all text-right font-mono text-xs text-ink">{valor}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </details>
   );
 }

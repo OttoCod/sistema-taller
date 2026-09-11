@@ -6,7 +6,7 @@ export function Sidebar() {
     <aside className="w-60 shrink-0 border-r border-line bg-surface px-3 py-4 overflow-y-auto">
       <div className="px-2 pb-4">
         <p className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
-          Espínola
+          Espíndola
         </p>
         <p className="font-semibold text-ink">Motorepuestos</p>
       </div>

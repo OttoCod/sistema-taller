@@ -6,15 +6,16 @@ import { AppError } from "../../lib/api/client";
 import { formatearCentavos } from "../../lib/money";
 import { ProductoFormDialog } from "./ProductoFormDialog";
 
+/**
+ * Solo se muestra cuando el producto NO está activo: marcar "Activo" en
+ * todas las filas era una columna entera repitiendo lo mismo. Lo que
+ * importa ver de un vistazo es la excepción.
+ */
 function EstadoBadge({ estado }: { estado: Producto["estado"] }) {
-  const esActivo = estado === "activo";
+  if (estado === "activo") return null;
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        esActivo ? "bg-good/15 text-good" : "bg-ink-muted/15 text-ink-muted"
-      }`}
-    >
-      {esActivo ? "Activo" : "Inactivo"}
+    <span className="rounded-full bg-ink-muted/15 px-2 py-0.5 text-xs font-medium text-ink-muted">
+      {estado === "inactivo" ? "Inactivo" : "Fusionado"}
     </span>
   );
 }
@@ -92,7 +93,7 @@ export function CatalogoPage() {
               <th className="px-3 py-2">Categoría</th>
               <th className="px-3 py-2 text-right">Costo</th>
               <th className="px-3 py-2 text-right">Precio venta</th>
-              <th className="px-3 py-2">Estado</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>

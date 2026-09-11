@@ -12,6 +12,7 @@ import { ID_CONSUMIDOR_FINAL } from "../../lib/api/clientes";
 import { listarComprobantesPorVenta, type TipoComprobante } from "../../lib/api/comprobantes";
 import { AppError } from "../../lib/api/client";
 import { formatearCentavos } from "../../lib/money";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { ComprobanteDialog } from "./ComprobanteDialog";
 
 type Props = {
@@ -65,6 +66,7 @@ export function VentaDetalleDialog({ ventaId, onOpenChange }: Props) {
 
   const [comprobanteAbierto, setComprobanteAbierto] = useState<TipoComprobante | null>(null);
   const [mostrarAnular, setMostrarAnular] = useState(false);
+  const [confirmarAnulacion, setConfirmarAnulacion] = useState(false);
   const [motivoAnulacion, setMotivoAnulacion] = useState("");
   const [mostrarDevolucion, setMostrarDevolucion] = useState(false);
   const [metodoDevolucion, setMetodoDevolucion] = useState<MetodoDevolucion>("reembolso_efectivo");
@@ -82,6 +84,7 @@ export function VentaDetalleDialog({ ventaId, onOpenChange }: Props) {
       setLineas({});
       setError(null);
       setComprobanteAbierto(null);
+      setConfirmarAnulacion(false);
     }
   }, [open, ventaId]);
 
@@ -106,10 +109,14 @@ export function VentaDetalleDialog({ ventaId, onOpenChange }: Props) {
     onSuccess: () => {
       invalidar();
       setMostrarAnular(false);
+      setConfirmarAnulacion(false);
       setMotivoAnulacion("");
       setError(null);
     },
-    onError: (e) => setError(e instanceof AppError ? e.userMessage : "No se pudo anular la venta."),
+    onError: (e) => {
+      setConfirmarAnulacion(false);
+      setError(e instanceof AppError ? e.userMessage : "No se pudo anular la venta.");
+    },
   });
 
   const devolucionMutation = useMutation({
@@ -361,15 +368,7 @@ export function VentaDetalleDialog({ ventaId, onOpenChange }: Props) {
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  "¿Confirmás que anulás esta venta completa? Esta acción no se puede deshacer.",
-                                )
-                              ) {
-                                anularMutation.mutate();
-                              }
-                            }}
+                            onClick={() => setConfirmarAnulacion(true)}
                             disabled={anularMutation.isPending}
                             className="self-start rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
                           >
@@ -535,6 +534,22 @@ export function VentaDetalleDialog({ ventaId, onOpenChange }: Props) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <ConfirmDialog
+        abierto={confirmarAnulacion}
+        titulo="Anular esta venta"
+        mensaje={[
+          `Se va a anular la venta completa V-${String(venta?.numero ?? 0).padStart(6, "0")}.`,
+          "El stock de los productos vuelve a su lugar y, si fue fiada, se le descuenta la deuda al cliente. La venta no se borra: queda registrada como anulada.",
+          "Esto no se puede deshacer.",
+        ]}
+        textoConfirmar="Sí, anular la venta"
+        textoCancelar="No, volver"
+        peligrosa
+        confirmando={anularMutation.isPending}
+        onConfirmar={() => anularMutation.mutate()}
+        onCancelar={() => setConfirmarAnulacion(false)}
+      />
 
       <ComprobanteDialog
         venta={comprobanteAbierto ? (venta ?? null) : null}

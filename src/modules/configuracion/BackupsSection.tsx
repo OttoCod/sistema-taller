@@ -14,6 +14,7 @@ import {
   type TipoBackup,
 } from "../../lib/api/backups";
 import { AppError } from "../../lib/api/client";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 
 const TEXTO_TIPO: Record<TipoBackup, string> = {
   manual: "Manual",
@@ -40,6 +41,7 @@ export function BackupsSection() {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [restauracion, setRestauracion] = useState<RestauracionPreparada | null>(null);
+  const [backupARestaurar, setBackupARestaurar] = useState<Backup | null>(null);
 
   useEffect(() => {
     if (configQuery.data) {
@@ -104,24 +106,15 @@ export function BackupsSection() {
       invalidar();
       setError(null);
       setAviso(null);
+      setBackupARestaurar(null);
       setRestauracion(preparada);
     },
     onError: (e) => {
       setAviso(null);
+      setBackupARestaurar(null);
       setError(e instanceof AppError ? e.userMessage : "No se pudo preparar la restauración.");
     },
   });
-
-  function pedirRestaurar(backup: Backup) {
-    const confirmado = window.confirm(
-      `¿Restaurar la copia del ${fechaLegible(backup.fecha)}?\n\n` +
-        "Todos los datos actuales van a ser reemplazados por los de esa copia: " +
-        "las ventas, compras y cambios posteriores a esa fecha se pierden.\n\n" +
-        "Antes de reemplazar nada se guarda una copia de seguridad del estado actual, " +
-        "y el cambio recién se aplica cuando reinicies la aplicación.",
-    );
-    if (confirmado) restaurarMutation.mutate(backup.id);
-  }
 
   const backups = backupsQuery.data ?? [];
 
@@ -257,7 +250,7 @@ export function BackupsSection() {
                   {backup.archivoExiste ? (
                     <button
                       type="button"
-                      onClick={() => pedirRestaurar(backup)}
+                      onClick={() => setBackupARestaurar(backup)}
                       disabled={restaurarMutation.isPending}
                       className="rounded-md border border-line px-3 py-1 text-xs text-ink hover:bg-surface-2 disabled:opacity-60"
                     >
@@ -272,6 +265,24 @@ export function BackupsSection() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        abierto={backupARestaurar !== null}
+        titulo="Restaurar esta copia"
+        mensaje={[
+          `Se va a volver al estado que tenía el sistema el ${
+            backupARestaurar ? fechaLegible(backupARestaurar.fecha) : ""
+          }.`,
+          "Todo lo que pasó después de esa fecha (ventas, compras, pagos, cambios de precios) se pierde.",
+          "Antes de reemplazar nada se guarda una copia de seguridad del estado actual, y el cambio recién se aplica cuando reinicies la aplicación.",
+        ]}
+        textoConfirmar="Sí, restaurar"
+        textoCancelar="No, dejar todo como está"
+        peligrosa
+        confirmando={restaurarMutation.isPending}
+        onConfirmar={() => backupARestaurar && restaurarMutation.mutate(backupARestaurar.id)}
+        onCancelar={() => setBackupARestaurar(null)}
+      />
     </div>
   );
 }

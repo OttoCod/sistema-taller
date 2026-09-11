@@ -1,4 +1,4 @@
-# Espínola Motorepuestos
+# Espíndola Motorepuestos
 
 Aplicación de escritorio (Windows) para reemplazar el uso de Excel, papel y
 consultas manuales en la gestión del negocio: productos, stock, ventas,

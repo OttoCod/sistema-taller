@@ -22,15 +22,14 @@ export function CajaPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-ink">Caja</h1>
           <p className="text-sm text-ink-muted">
-            Se calcula al momento a partir de las ventas confirmadas de ese día -- no es una planilla aparte,
-            así nunca se desincroniza de lo que dicen las ventas.
+            Se calcula al momento a partir de las ventas confirmadas del día.
           </p>
         </div>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex shrink-0 flex-col gap-1 text-sm">
           <span className="text-ink-muted">Fecha</span>
           <input
             type="date"
@@ -89,7 +88,7 @@ export function CajaPage() {
           {resumen.totalFiado > 0 && (
             <p className="text-sm text-warn">
               Además, ese día quedaron <strong>{formatearCentavos(resumen.totalFiado)}</strong> fiados (cuenta
-              corriente) -- no es plata que entró a la caja.
+              corriente) — no es plata que entró a la caja.
             </p>
           )}
         </>

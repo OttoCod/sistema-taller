@@ -1,4 +1,4 @@
-# Arquitectura — Espínola Motorepuestos
+# Arquitectura — Espíndola Motorepuestos
 
 Este documento describe la arquitectura base construida en la **Fase 1** y
 extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock),
@@ -262,6 +262,32 @@ clave:
   y hubieran requerido infraestructura extra (subir/mostrar una imagen,
   una UI de formato) sin un caso de uso concreto todavía.
 
+Después de la Fase 12 se hizo una **pasada de limpieza de interfaz**, con el
+sistema ya en uso real. No agregó funcionalidad: sacó lo que había quedado
+de fases viejas y se notaba como "a medio terminar".
+
+- **El nombre correcto del negocio es Espíndola** (con d), no Espínola. Se
+  corrigió en lo visible: barra lateral y estos documentos. **Los
+  identificadores internos siguen diciendo `espinola`** a propósito
+  (`espinola.db`, el nombre del paquete, el identifier del bundle):
+  cambiarlos haría que la app instalada busque otro archivo y otra carpeta
+  de datos, y el negocio vería su base vacía. El nombre que se imprime en
+  los comprobantes sale de `configuracion`, así que se corrige desde la
+  pantalla de Configuración, no desde el código.
+- **Inicio dejó de ser una pantalla de diagnóstico.** Decía que los módulos
+  se agregaban en fases futuras (ya falso) y mostraba ruta del archivo y
+  versión del motor. Ahora muestra lo del día —cobrado, deuda de clientes,
+  productos a reponer— reusando comandos que ya existían, sin backend
+  nuevo. La ficha técnica se mudó a Configuración, plegada.
+- **Se sacó el buscador global deshabilitado del Topbar**, que desde la
+  Fase 1 decía "(Fase 2)" y en Nueva venta convivía con el buscador real,
+  uno encima del otro. En su lugar quedó el nombre del negocio y la fecha.
+- **Las confirmaciones destructivas dejaron de usar `window.confirm`**
+  (anular venta, descartar importación, restaurar backup). Ese cartel lo
+  dibuja Windows: otra tipografía, otros botones y sin lugar para explicar
+  qué se va a modificar. Ahora usan `components/ui/ConfirmDialog`, que
+  además distingue las acciones peligrosas y detalla las consecuencias.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
 / "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /
 "(Fase 9)" / "(Fase 10)" / "(Fase 11)" / "(Fase 12)" abajo; el resto
@@ -320,7 +346,7 @@ sistema-taller/
 │   ├── components/layout/
 │   │   ├── AppShell.tsx              # sidebar + topbar + <Outlet/>
 │   │   ├── Sidebar.tsx               # navegación (sección 29), generada desde lib/nav.ts
-│   │   ├── Topbar.tsx                # buscador global -- sigue solo visual; NuevaVentaPage tiene su propio buscador de productos, no comparte este
+│   │   ├── Topbar.tsx                # nombre del negocio + fecha de hoy; hasta la limpieza posterior a la Fase 12 tenía un buscador global deshabilitado, de adorno
 │   │   └── ErrorBoundary.tsx         # red de contención de errores de render
 │   ├── lib/
 │   │   ├── nav.ts                    # única fuente de verdad de la navegación
