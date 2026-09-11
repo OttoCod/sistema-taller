@@ -1,0 +1,21 @@
+Para que el sistema muestre el logo del negocio en el menú:
+
+  1. Guardá la imagen del logo en esta misma carpeta, con el nombre
+     exacto:  logo.png
+
+  2. Cerrá y volvé a abrir la aplicación.
+
+Eso es todo. Si el archivo no está, el menú muestra el nombre escrito
+(ESPÍNDOLA / MOTORESPUESTOS) y no pasa nada malo.
+
+Recomendaciones para que se vea bien:
+  - PNG con fondo transparente o negro (el menú es negro).
+  - Cuadrado o apaisado; se ajusta solo hasta unos 96 píxeles de alto.
+  - Que no sea enorme: con 400x400 píxeles alcanza y sobra.
+
+Si querés que el logo quede guardado en el repositorio (y no solo en
+esta computadora), después de copiarlo ejecutá:
+
+  git add public/logo.png
+  git commit -m "Agregar el logo del negocio"
+  git push

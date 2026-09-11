@@ -1,12 +1,18 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { NAV_SECTIONS } from "../../lib/nav";
 import { Icono } from "../ui/Icono";
 
 /**
- * Reproduce el bloque de texto del logo (ESPÍNDOLA en blanco sobre negro,
- * MOTORESPUESTOS en amarillo debajo). Es una versión tipográfica, no el
- * logo real: si más adelante se suma el archivo de imagen, se reemplaza
- * solo este componente.
+ * Muestra el logo del negocio si el archivo `public/logo.png` existe. Si
+ * no está, cae en una versión tipográfica que imita el logo (ESPÍNDOLA en
+ * blanco sobre negro, MOTORESPUESTOS en amarillo debajo), así la pantalla
+ * nunca queda con un hueco ni con el ícono de imagen rota.
+ *
+ * Es a propósito que dependa de que el archivo exista y no de un `import`:
+ * un import de un archivo ausente rompe la compilación, y la idea es que
+ * el negocio pueda poner o cambiar su logo sin tocar código ni necesitar
+ * a un programador.
  *
  * Ojo con el nombre: es Espíndola (con d) Motorespuestos (con s), tal
  * como está en el logo y en el Instagram del local. Los identificadores
@@ -16,14 +22,31 @@ import { Icono } from "../ui/Icono";
  * negocio vería su base vacía.
  */
 function Marca() {
+  // Si existe public/logo.png, se muestra ese archivo; si no, queda la
+  // versión tipográfica. Así el negocio puede poner su logo real sin que
+  // haya que tocar una línea de código: alcanza con dejar el archivo ahí.
+  const [logo, setLogo] = useState<"probando" | "si" | "no">("probando");
+
   return (
     <div className="px-2 pb-5 pt-1">
-      <p className="text-lg font-extrabold italic leading-none tracking-tight text-marca-ink">
-        ESPÍNDOLA
-      </p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.18em] text-accent">
-        Motorespuestos
-      </p>
+      <img
+        src="/logo.png"
+        alt="Espíndola Motorespuestos"
+        hidden={logo !== "si"}
+        onLoad={() => setLogo("si")}
+        onError={() => setLogo("no")}
+        className="max-h-24 w-full object-contain object-left"
+      />
+      {logo !== "si" && (
+        <>
+          <p className="text-lg font-extrabold italic leading-none tracking-tight text-marca-ink">
+            ESPÍNDOLA
+          </p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.18em] text-accent">
+            Motorespuestos
+          </p>
+        </>
+      )}
     </div>
   );
 }
