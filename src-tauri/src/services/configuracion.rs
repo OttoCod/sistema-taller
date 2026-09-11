@@ -6,6 +6,8 @@ use crate::models::configuracion::ConfiguracionNegocio;
 const CLAVE_NOMBRE: &str = "negocio.nombre";
 const CLAVE_DIRECCION: &str = "negocio.direccion";
 const CLAVE_TELEFONO: &str = "negocio.telefono";
+const CLAVE_BACKUPS_CARPETA: &str = "backups.carpeta";
+const CLAVE_BACKUPS_RETENCION: &str = "backups.retencion";
 
 async fn obtener_valor(pool: &SqlitePool, clave: &str) -> AppResult<Option<String>> {
     let fila: Option<(Option<String>,)> =
@@ -55,6 +57,28 @@ pub async fn guardar_negocio(pool: &SqlitePool, datos: ConfiguracionNegocio) -> 
     upsert(pool, CLAVE_NOMBRE, nombre).await?;
     upsert(pool, CLAVE_DIRECCION, datos.direccion.trim()).await?;
     upsert(pool, CLAVE_TELEFONO, datos.telefono.trim()).await?;
+    Ok(())
+}
+
+/// Vacío = todavía no eligió carpeta, se usa la que está adentro de los
+/// datos de la app (`services::backups::carpeta_por_defecto`).
+pub async fn obtener_backups_carpeta(pool: &SqlitePool) -> AppResult<String> {
+    Ok(obtener_valor(pool, CLAVE_BACKUPS_CARPETA)
+        .await?
+        .unwrap_or_default())
+}
+
+pub async fn obtener_backups_retencion(pool: &SqlitePool) -> AppResult<i64> {
+    Ok(obtener_valor(pool, CLAVE_BACKUPS_RETENCION)
+        .await?
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|v| *v >= 1)
+        .unwrap_or(crate::services::backups::RETENCION_POR_DEFECTO))
+}
+
+pub async fn guardar_backups(pool: &SqlitePool, carpeta: &str, retencion: i64) -> AppResult<()> {
+    upsert(pool, CLAVE_BACKUPS_CARPETA, carpeta.trim()).await?;
+    upsert(pool, CLAVE_BACKUPS_RETENCION, &retencion.to_string()).await?;
     Ok(())
 }
 

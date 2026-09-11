@@ -24,6 +24,31 @@ pub fn run() {
             let pool = tauri::async_runtime::block_on(db::init_pool(&app_data_dir))
                 .expect("no se pudo inicializar la base de datos");
 
+            // Fase 12: si el último backup ya tiene más de 24 h (o nunca
+            // hubo uno), se saca uno solo, en segundo plano, para no
+            // demorar el arranque. Si falla, queda en el log y la app
+            // abre igual: un backup que no salió no es motivo para dejar
+            // al negocio sin sistema.
+            let pool_backup = pool.clone();
+            let dir_backup = app_data_dir.clone();
+            tauri::async_runtime::spawn(async move {
+                match services::backups::necesita_automatico(&pool_backup).await {
+                    Ok(true) => {
+                        if let Err(err) =
+                            services::backups::crear(&pool_backup, &dir_backup, "automatico").await
+                        {
+                            tracing::error!(error = %err, "no se pudo generar el backup automático");
+                        } else {
+                            tracing::info!("backup automático generado");
+                        }
+                    }
+                    Ok(false) => {}
+                    Err(err) => {
+                        tracing::error!(error = %err, "no se pudo evaluar si hacía falta un backup")
+                    }
+                }
+            });
+
             app.manage(db::AppState {
                 pool,
                 db_path: db_path.display().to_string(),
@@ -88,6 +113,12 @@ pub fn run() {
             commands::comprobantes::comprobantes_listar_por_venta,
             commands::comprobantes::comprobantes_registrar_evento,
             commands::comprobantes::comprobantes_listar_eventos,
+            commands::backups::backups_listar,
+            commands::backups::backups_crear,
+            commands::backups::backups_obtener_configuracion,
+            commands::backups::backups_guardar_configuracion,
+            commands::backups::backups_preparar_restauracion,
+            commands::backups::app_reiniciar,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

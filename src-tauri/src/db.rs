@@ -21,6 +21,16 @@ pub fn db_path(app_data_dir: &Path) -> PathBuf {
 pub async fn init_pool(app_data_dir: &Path) -> AppResult<SqlitePool> {
     std::fs::create_dir_all(app_data_dir)?;
 
+    // Fase 12: si quedó una restauración preparada, se aplica ahora --
+    // antes de abrir la base, que es el único momento en que reemplazar
+    // el archivo no puede dejarlo a medio escribir. Si falla, es mejor
+    // no arrancar que arrancar sobre una base ambigua.
+    if let Some(origen) =
+        crate::services::backups::aplicar_pendiente(app_data_dir, &db_path(app_data_dir))?
+    {
+        tracing::info!(backup = %origen, "base restaurada desde un backup");
+    }
+
     let options = SqliteConnectOptions::new()
         .filename(db_path(app_data_dir))
         .create_if_missing(true)

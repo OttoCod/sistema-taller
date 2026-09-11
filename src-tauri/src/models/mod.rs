@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod caja;
 pub mod categoria;
 pub mod cliente;
