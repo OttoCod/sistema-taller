@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { guardarConfiguracionNegocio, obtenerConfiguracionNegocio } from "../../lib/api/configuracion";
 import { AppError } from "../../lib/api/client";
+import { BackupsSection } from "./BackupsSection";
 
 export function ConfiguracionPage() {
   const queryClient = useQueryClient();
@@ -48,7 +49,7 @@ export function ConfiguracionPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Configuración</h1>
         <p className="text-sm text-ink-muted">
-          Estos datos aparecen en el encabezado de los comprobantes que se imprimen desde una venta.
+          Datos del negocio para los comprobantes, y copias de seguridad de la base.
         </p>
       </div>
 
@@ -104,6 +105,8 @@ export function ConfiguracionPage() {
           </button>
         </div>
       )}
+
+      <BackupsSection />
     </div>
   );
 }
