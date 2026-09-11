@@ -311,6 +311,14 @@ tocar un solo archivo:
 - El bloque de marca de la barra lateral es una versión **tipográfica** del
   logo, no el archivo real. Si más adelante se suma la imagen, se
   reemplaza solo el componente `Marca` de `Sidebar.tsx`.
+- **Los íconos de la navegación se dibujan en `components/ui/Icono.tsx`**,
+  sin librería: son nueve, no cambian seguido, y no justificaban sumar una
+  dependencia (ni un `npm install` más para el negocio) por unos trazos.
+  Comparten caja, grosor de línea y `currentColor`, así que heredan el
+  color del texto y quedan parejos. Qué ícono lleva cada sección se
+  declara en `lib/nav.ts`, que sigue siendo la única fuente de verdad de
+  la navegación; solo los items de primer nivel llevan, porque los hijos
+  ya quedan acotados por la sangría.
 
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
 / "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /

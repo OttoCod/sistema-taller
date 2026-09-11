@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { NAV_SECTIONS } from "../../lib/nav";
+import { Icono } from "../ui/Icono";
 
 /**
  * Reproduce el bloque de texto del logo (ESPÍNDOLA en blanco sobre negro,
@@ -43,13 +44,15 @@ export function Sidebar() {
                 // amarillo queda para la pantalla concreta; la sección solo
                 // se resalta en color.
                 const tieneHijos = (item.children?.length ?? 0) > 1;
-                const base = "block rounded-md px-3 py-2 text-sm font-medium transition-colors";
+                const base =
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors";
                 if (!isActive) return `${base} text-marca-ink hover:bg-marca-2`;
                 return tieneHijos
                   ? `${base} text-accent`
                   : `${base} bg-accent text-accent-ink`;
               }}
             >
+              {item.icono && <Icono nombre={item.icono} className="h-[18px] w-[18px] shrink-0" />}
               {item.label}
             </NavLink>
             {item.children && item.children.length > 1 && (
