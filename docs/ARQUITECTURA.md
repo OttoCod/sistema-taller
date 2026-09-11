@@ -8,10 +8,10 @@ y recepción), la **Fase 8** (gestión completa de proveedores y vínculo
 producto-proveedor), la **Fase 3** (importación de listas de precios desde
 Excel — se implementó después de la 8, en cuanto el negocio mandó el
 archivo real), la **Fase 9** (caja), la **Fase 11** (anulaciones y
-devoluciones de venta) y la **Fase 10** (comprobantes e impresión — se
+devoluciones de venta), la **Fase 10** (comprobantes e impresión — se
 implementó después de la 11, no por dependencia técnica sino porque así
-lo pidió el negocio). El esquema de base de datos completo está en
-[`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
+lo pidió el negocio) y la **Fase 12** (backups y restauración). El esquema
+de base de datos completo está en [`ESQUEMA_BD.md`](./ESQUEMA_BD.md).
 
 La Fase 1 **no** implementaba productos, ventas, compras, clientes ni
 stock: solo dejó funcionando el proyecto Tauri+React+TS, la conexión a
@@ -264,8 +264,8 @@ clave:
 
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
 / "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /
-"(Fase 9)" / "(Fase 10)" / "(Fase 11)" abajo; el resto sigue siendo tal
-cual quedó en fases anteriores.
+"(Fase 9)" / "(Fase 10)" / "(Fase 11)" / "(Fase 12)" abajo; el resto
+sigue siendo tal cual quedó en fases anteriores.
 
 ## 1. Estructura del proyecto
 
@@ -313,7 +313,8 @@ sistema-taller/
 │   │   ├── caja/                     # (Fase 9)
 │   │   │   └── CajaPage.tsx          # selector de fecha + resumen calculado al momento
 │   │   ├── configuracion/            # (Fase 10)
-│   │   │   └── ConfiguracionPage.tsx # ficha del negocio (encabezado del comprobante)
+│   │   │   ├── ConfiguracionPage.tsx # ficha del negocio (encabezado del comprobante)
+│   │   │   └── BackupsSection.tsx     # (Fase 12) carpeta, retención, crear y restaurar copias
 │   │   └── placeholder/
 │   │       └── PlaceholderPage.tsx   # pantalla "módulo pendiente — Fase N"
 │   ├── components/layout/
@@ -342,7 +343,8 @@ sistema-taller/
 │   │       ├── importaciones.ts      # (Fase 3)
 │   │       ├── caja.ts               # (Fase 9)
 │   │       ├── comprobantes.ts       # (Fase 10)
-│   │       └── configuracion.ts      # (Fase 10)
+│   │       ├── configuracion.ts      # (Fase 10)
+│   │       └── backups.ts            # (Fase 12)
 │   ├── styles/globals.css            # Tailwind v4 + tokens de color provisorios
 │   ├── App.tsx                       # rutas (HashRouter) + QueryClientProvider
 │   └── main.tsx
@@ -365,7 +367,8 @@ sistema-taller/
 │   │   │   ├── caja.rs               # (Fase 9)
 │   │   │   ├── devoluciones.rs       # (Fase 11)
 │   │   │   ├── comprobantes.rs       # (Fase 10)
-│   │   │   └── configuracion.rs      # (Fase 10)
+│   │   │   ├── configuracion.rs      # (Fase 10)
+│   │   │   └── backups.rs            # (Fase 12) + app_reiniciar
 │   │   ├── services/                 # reglas de negocio, sin nada de Tauri
 │   │   │   ├── system.rs
 │   │   │   ├── marcas.rs             # (Fase 2)
@@ -384,7 +387,8 @@ sistema-taller/
 │   │   │   ├── caja.rs               # (Fase 9) agrega venta_pagos, sin tabla propia
 │   │   │   ├── devoluciones.rs       # (Fase 11) devolución parcial/total, repone stock según estado_producto
 │   │   │   ├── comprobantes.rs       # (Fase 10) obtener_o_crear (numero derivado del id), listar_por_venta de solo lectura, eventos
-│   │   │   └── configuracion.rs      # (Fase 10) obtener_negocio/guardar_negocio sobre la tabla clave-valor
+│   │   │   ├── configuracion.rs      # (Fase 10) obtener_negocio/guardar_negocio sobre la tabla clave-valor
+│   │   │   └── backups.rs            # (Fase 12) VACUUM INTO, retención, restauración en dos tiempos
 │   │   ├── models/                   # (Fase 2) structs compartidos entre commands/services
 │   │   │   ├── marca.rs
 │   │   │   ├── categoria.rs
@@ -401,8 +405,9 @@ sistema-taller/
 │   │   │   ├── caja.rs               # (Fase 9)
 │   │   │   ├── devolucion.rs         # (Fase 11)
 │   │   │   ├── comprobante.rs        # (Fase 10)
-│   │   │   └── configuracion.rs      # (Fase 10) ConfiguracionNegocio
-│   │   ├── db.rs                     # pool SQLite, migraciones, AppState
+│   │   │   ├── configuracion.rs      # (Fase 10) ConfiguracionNegocio
+│   │   │   └── backup.rs             # (Fase 12)
+│   │   ├── db.rs                     # pool SQLite, migraciones, AppState; aplica la restauración pendiente al arrancar (Fase 12)
 │   │   ├── error.rs                  # AppError (thiserror + Serialize)
 │   │   ├── logging.rs                # tracing a archivo diario
 │   │   ├── lib.rs                    # arma el Builder de Tauri
@@ -418,7 +423,8 @@ sistema-taller/
 │   │   ├── 0008_producto_proveedores.sql  # (Fase 8) vínculo N:N producto-proveedor
 │   │   ├── 0009_importaciones.sql    # (Fase 3) importaciones, importacion_filas, productos.codigo_legado
 │   │   ├── 0010_devoluciones.sql     # (Fase 11) devoluciones, devolucion_detalles
-│   │   └── 0011_comprobantes.sql     # (Fase 10) comprobantes, comprobante_eventos
+│   │   ├── 0011_comprobantes.sql     # (Fase 10) comprobantes, comprobante_eventos
+│   │   └── 0012_backups.sql          # (Fase 12) backups
 │   └── Cargo.toml
 └── docs/
     ├── ARQUITECTURA.md               # este archivo
@@ -535,7 +541,31 @@ desde Rust), `zip` y `tauri-plugin-fs` (Fase 12, backups).
   dispara un backup automático primero. En la Fase 1 no aplica todavía
   porque no hay datos de negocio que proteger.
 
-## 5. Estrategia de backups (diseño — se implementa en la Fase 12)
+## 5. Estrategia de backups (implementada en la Fase 12)
+
+Lo que sigue es el diseño original; se implementó tal cual, con estas
+precisiones que aparecieron al escribirlo:
+
+- **La restauración nunca toca la base en caliente.** `preparar_restauracion`
+  hace la copia de seguridad, valida el archivo y deja un marcador;
+  `db::init_pool` lo consume en el arranque siguiente, *antes* de abrir la
+  base, y ahí sí reemplaza el `.db`. Reemplazarlo con la app usándolo es
+  exactamente la forma de corromperlo. El reinicio lo pide la persona con
+  un botón: nunca se dispara solo.
+- **Se valida el archivo antes de aceptarlo**: se abre como base SQLite de
+  solo lectura, se corre `integrity_check`, se confirma que tiene las
+  tablas del sistema y que su versión de esquema no sea más nueva que la
+  del binario. Restaurar un archivo dañado dejaría al negocio sin datos.
+- **El WAL viejo se borra al restaurar** (antes y después de la copia): si
+  sobreviviera, SQLite podría aplicarlo encima de la base recién
+  restaurada. Su contenido ya quedó guardado en la copia de seguridad.
+- **Las copias `previo_restauracion` quedan fuera de la rotación**: son la
+  red de contención de una operación destructiva, no una copia rutinaria.
+- **No hizo falta ninguna dependencia nueva**: `VACUUM INTO` es de SQLite y
+  todo el manejo de archivos se hace desde Rust, así que ni `zip` ni
+  `tauri-plugin-fs` terminaron siendo necesarios.
+
+
 
 - **Snapshot atómico**: `VACUUM INTO 'archivo.db'` en vez de copiar el
   archivo `.db` en caliente — evita capturar un estado a medio escribir,

@@ -464,12 +464,12 @@ comprobante_eventos
   tipo_evento     TEXT NOT NULL   -- impreso | pdf_generado
   fecha           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 
-backups
+backups     -- implementada en la Fase 12 (migración 0012_backups.sql)
   id                INTEGER PK
   archivo_path      TEXT NOT NULL
   fecha             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-  tamaño_bytes      INTEGER NOT NULL
-  tipo              TEXT NOT NULL   -- manual | automatico
+  tamano_bytes      INTEGER NOT NULL   -- sin eñe: el nombre viaja hasta Rust y TypeScript
+  tipo              TEXT NOT NULL   -- manual | automatico | previo_restauracion
   version_esquema   INTEGER NOT NULL
 
 -- ya creadas en la Fase 1 (migración 0001_bootstrap.sql):
@@ -500,6 +500,15 @@ dirección, teléfono, logo), de comprobante (formato, numeración) y de
 formato de moneda (`moneda.decimales_visibles`, por ahora `0` para
 Argentina — punto G). Al ser clave-valor, agregar una configuración nueva
 nunca requiere una migración de esquema.
+
+**Backups (Fase 12):** el archivo de cada copia vive afuera de la base
+(carpeta elegida por el negocio, o `<datos de la app>/backups`), con un
+`.json` al lado que guarda fecha, tipo, versión de esquema y versión de la
+app. La copia se saca con `VACUUM INTO`, nunca copiando el `.db` en
+caliente. `previo_restauracion` es la copia que el sistema saca solo,
+justo antes de reemplazar la base, y es la única que la rotación nunca
+borra. Las claves `backups.carpeta` y `backups.retencion` viven en
+`configuracion`.
 
 **Implementado en la Fase 10** (`services::configuracion`): solo
 `negocio.nombre`, `negocio.direccion` y `negocio.telefono` — lo único que
