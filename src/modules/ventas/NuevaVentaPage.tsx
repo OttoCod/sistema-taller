@@ -333,7 +333,7 @@ export function NuevaVentaPage() {
               type="button"
               onClick={agregarPago}
               disabled={!metodosPagoQuery.data?.length}
-              className="text-xs text-accent hover:underline"
+              className="text-xs text-enlace hover:underline"
             >
               + agregar pago
             </button>

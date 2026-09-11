@@ -1,22 +1,47 @@
 @import "tailwindcss";
 
 /*
- * Paleta provisoria. No hay logo ni colores de marca definidos todavia
- * (ver seccion 37 del documento de arquitectura). Se reemplaza cuando
- * el negocio provea la identidad real; todo el UI consume estos tokens,
- * asi que el cambio queda centralizado aca.
+ * Paleta tomada del logo del negocio: fondo negro, amarillo dorado como
+ * color dominante, rojo de competición y texto blanco.
+ *
+ * Dos decisiones que vale la pena dejar escritas:
+ *
+ * 1. El amarillo va SIEMPRE con texto negro encima (--color-accent-ink),
+ *    como en el logo. Amarillo con letra blanca es ilegible.
+ * 2. El área de trabajo queda clara, no negra. La marca vive en la barra
+ *    lateral, que es donde se mira de reojo; las tablas de precios y
+ *    stock se leen ocho horas por día y en claro cansan menos. Además el
+ *    comprobante se imprime en papel blanco.
+ *
+ * El amarillo de marca y el color de aviso serían casi el mismo tono, así
+ * que el de aviso se corrió a un ámbar más oscuro para que "esto es un
+ * botón" y "esto es una advertencia" no se confundan.
  */
 @theme {
-  --color-bg: #f4f4f1;
+  --color-bg: #f3f3f1;
   --color-surface: #ffffff;
-  --color-surface-2: #eceee8;
-  --color-ink: #1c1f1d;
-  --color-ink-muted: #5b615b;
-  --color-line: #d8dad2;
-  --color-accent: #b04f1c;
-  --color-accent-ink: #ffffff;
-  --color-danger: #a23a2c;
-  --color-warn: #8f6412;
+  --color-surface-2: #eaeae7;
+  --color-ink: #16181a;
+  --color-ink-muted: #5d6165;
+  --color-line: #d9dade;
+
+  /* Amarillo del logo: acciones principales, siempre con texto negro. */
+  --color-accent: #f2c200;
+  --color-accent-ink: #16181a;
+  /* El amarillo como texto sobre blanco no se lee. Para enlaces y
+     acciones secundarias sobre fondo claro va este ámbar oscuro, que es
+     el mismo color de marca bajado hasta tener contraste suficiente. */
+  --color-enlace: #8a6a00;
+
+  /* Negro del logo: barra lateral. */
+  --color-marca: #131417;
+  --color-marca-2: #22242a;
+  --color-marca-ink: #f4f4f5;
+  --color-marca-ink-muted: #a2a5ad;
+
+  /* Rojo del logo: reservado para lo destructivo (anular, restaurar). */
+  --color-danger: #cf2130;
+  --color-warn: #b45309;
   --color-good: #2e6b4f;
 
   --font-sans: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, sans-serif;

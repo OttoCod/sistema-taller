@@ -60,7 +60,7 @@ export function ProveedorSelector({ proveedorId, proveedorNombre, onSeleccionar 
           <button
             type="button"
             onMouseDown={() => setDialogoAbierto(true)}
-            className="block w-full border-t border-line px-3 py-1.5 text-left text-sm font-medium text-accent hover:bg-surface-2"
+            className="block w-full border-t border-line px-3 py-1.5 text-left text-sm font-medium text-enlace hover:bg-surface-2"
           >
             + Crear proveedor nuevo
           </button>

@@ -1,33 +1,52 @@
 import { NavLink } from "react-router-dom";
 import { NAV_SECTIONS } from "../../lib/nav";
 
+/**
+ * Reproduce el bloque de texto del logo (ESPÍNDOLA en blanco sobre negro,
+ * MOTOREPUESTOS en amarillo debajo). Es una versión tipográfica, no el
+ * logo real: si más adelante se suma el archivo de imagen, se reemplaza
+ * solo este componente.
+ */
+function Marca() {
+  return (
+    <div className="px-2 pb-5 pt-1">
+      <p className="text-lg font-extrabold italic leading-none tracking-tight text-marca-ink">
+        ESPÍNDOLA
+      </p>
+      <p className="mt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.18em] text-accent">
+        Motorepuestos
+      </p>
+    </div>
+  );
+}
+
 export function Sidebar() {
   return (
-    <aside className="w-60 shrink-0 border-r border-line bg-surface px-3 py-4 overflow-y-auto">
-      <div className="px-2 pb-4">
-        <p className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
-          Espíndola
-        </p>
-        <p className="font-semibold text-ink">Motorepuestos</p>
-      </div>
+    <aside className="w-60 shrink-0 overflow-y-auto bg-marca px-3 py-4">
+      <Marca />
       <nav className="flex flex-col gap-1">
         {NAV_SECTIONS.map((item) => (
           <div key={item.path}>
             <NavLink
               to={item.path}
               end={item.path === "/"}
-              className={({ isActive }) =>
-                `block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-accent text-accent-ink"
-                    : "text-ink hover:bg-surface-2"
-                }`
-              }
+              className={({ isActive }) => {
+                // Una sección con hijos comparte la ruta con el primero de
+                // ellos, así que se marcarían las dos a la vez. El bloque
+                // amarillo queda para la pantalla concreta; la sección solo
+                // se resalta en color.
+                const tieneHijos = (item.children?.length ?? 0) > 1;
+                const base = "block rounded-md px-3 py-2 text-sm font-medium transition-colors";
+                if (!isActive) return `${base} text-marca-ink hover:bg-marca-2`;
+                return tieneHijos
+                  ? `${base} text-accent`
+                  : `${base} bg-accent text-accent-ink`;
+              }}
             >
               {item.label}
             </NavLink>
             {item.children && item.children.length > 1 && (
-              <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-line pl-3">
+              <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-marca-2 pl-3">
                 {item.children.map((child) => (
                   <NavLink
                     key={child.path}
@@ -36,7 +55,7 @@ export function Sidebar() {
                       `rounded-md px-3 py-1.5 text-sm transition-colors ${
                         isActive
                           ? "bg-accent text-accent-ink"
-                          : "text-ink-muted hover:bg-surface-2 hover:text-ink"
+                          : "text-marca-ink-muted hover:bg-marca-2 hover:text-marca-ink"
                       }`
                     }
                   >

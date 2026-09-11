@@ -288,6 +288,30 @@ de fases viejas y se notaba como "a medio terminar".
   qué se va a modificar. Ahora usan `components/ui/ConfirmDialog`, que
   además distingue las acciones peligrosas y detalla las consecuencias.
 
+Enseguida después llegó la **identidad visual**, tomada del logo del
+negocio (fondo negro, amarillo dorado, rojo de competición). Vive
+completa en los tokens de `styles/globals.css`, así que cambiarla es
+tocar un solo archivo:
+
+- **El amarillo va siempre con texto negro**, como en el logo: amarillo con
+  letra blanca no se lee. Por eso `--color-accent-ink` es casi negro.
+- **El área de trabajo quedó clara, no negra.** La marca vive en la barra
+  lateral, que se mira de reojo; las tablas de precios y stock se leen
+  todo el día y en claro cansan menos. Además el comprobante se imprime
+  sobre papel blanco.
+- **El rojo del logo quedó reservado para lo destructivo** (anular,
+  restaurar). Como el color principal ahora es amarillo, el rojo se lee
+  sin ambigüedad como "cuidado".
+- **`--color-enlace`** existe porque el amarillo de marca como texto sobre
+  blanco es ilegible: es el mismo color bajado hasta tener contraste, para
+  enlaces y acciones secundarias sobre fondo claro.
+- **El color de aviso se corrió a un ámbar más oscuro**: con el amarillo de
+  marca al lado, "esto es un botón" y "esto es una advertencia" se
+  confundían.
+- El bloque de marca de la barra lateral es una versión **tipográfica** del
+  logo, no el archivo real. Si más adelante se suma la imagen, se
+  reemplaza solo el componente `Marca` de `Sidebar.tsx`.
+
 Estructura y decisiones nuevas están marcadas como "(Fase 2)" / "(Fase 3)"
 / "(Fase 4)" / "(Fase 5)" / "(Fase 6)" / "(Fase 7)" / "(Fase 8)" /
 "(Fase 9)" / "(Fase 10)" / "(Fase 11)" / "(Fase 12)" abajo; el resto

@@ -60,8 +60,10 @@ export function ConfirmDialog({
               onClick={onConfirmar}
               disabled={confirmando}
               autoFocus
-              className={`rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60 ${
-                peligrosa ? "bg-danger hover:bg-danger/90" : "bg-accent hover:bg-accent/90"
+              className={`rounded-md px-4 py-1.5 text-sm font-medium disabled:opacity-60 ${
+                peligrosa
+                  ? "bg-danger text-white hover:bg-danger/90"
+                  : "bg-accent text-accent-ink hover:bg-accent/90"
               }`}
             >
               {confirmando ? "Un momento..." : textoConfirmar}

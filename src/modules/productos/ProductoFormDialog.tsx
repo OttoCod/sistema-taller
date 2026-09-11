@@ -325,7 +325,7 @@ export function ProductoFormDialog({ open, onOpenChange, productoId }: Props) {
                   <button
                     type="button"
                     onClick={agregarCodigo}
-                    className="text-xs text-accent hover:underline"
+                    className="text-xs text-enlace hover:underline"
                   >
                     + agregar código
                   </button>
