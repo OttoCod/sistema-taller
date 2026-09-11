@@ -3,9 +3,16 @@ import { NAV_SECTIONS } from "../../lib/nav";
 
 /**
  * Reproduce el bloque de texto del logo (ESPÍNDOLA en blanco sobre negro,
- * MOTOREPUESTOS en amarillo debajo). Es una versión tipográfica, no el
+ * MOTORESPUESTOS en amarillo debajo). Es una versión tipográfica, no el
  * logo real: si más adelante se suma el archivo de imagen, se reemplaza
  * solo este componente.
+ *
+ * Ojo con el nombre: es Espíndola (con d) Motorespuestos (con s), tal
+ * como está en el logo y en el Instagram del local. Los identificadores
+ * internos (`espinola.db`, el nombre del paquete, el identifier del
+ * bundle) quedaron con la grafía vieja a propósito: cambiarlos haría que
+ * la app instalada busque otro archivo y otra carpeta de datos, y el
+ * negocio vería su base vacía.
  */
 function Marca() {
   return (
@@ -14,7 +21,7 @@ function Marca() {
         ESPÍNDOLA
       </p>
       <p className="mt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.18em] text-accent">
-        Motorepuestos
+        Motorespuestos
       </p>
     </div>
   );

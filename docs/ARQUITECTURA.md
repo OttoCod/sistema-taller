@@ -1,4 +1,4 @@
-# Arquitectura — Espíndola Motorepuestos
+# Arquitectura — Espíndola Motorespuestos
 
 Este documento describe la arquitectura base construida en la **Fase 1** y
 extendida en la **Fase 2** (catálogo de productos), la **Fase 4** (stock),

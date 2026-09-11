@@ -1,4 +1,4 @@
-# Esquema de base de datos — Espíndola Motorepuestos
+# Esquema de base de datos — Espíndola Motorespuestos
 
 Esquema final acordado tras la revisión de los puntos A–H. Este documento es
 la referencia para escribir las migraciones de la Fase 2 en adelante; la
